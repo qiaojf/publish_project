@@ -1,0 +1,33 @@
+<script setup lang="ts">
+import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
+import PageHeader from '@/components/PageHeader.vue'
+import { createPublishTarget, deletePublishTarget, getPublishTargets, updatePublishTarget, updatePublishTargetStatus } from '@/api/publishTargets'
+import { CONTENT_TYPES } from '@/constants'
+import type { ContentType } from '@/types/content'
+import type { PublishTarget, PublishTargetPayload } from '@/types/publish'
+
+const loading = ref(false); const saving = ref(false); const targets = ref<PublishTarget[]>([]); const dialogVisible = ref(false); const editingId = ref<number>(); const formRef = ref<FormInstance>()
+const form = reactive<PublishTargetPayload>({ name: '', content_types: [], publish_root: '', base_url: '', enabled: true })
+const contentTypeLabel = (value: ContentType) => CONTENT_TYPES[value]
+const rules: FormRules = { name: [{ required: true, message: '请输入发布目标名称', trigger: 'blur' }], content_types: [{ type: 'array', required: true, min: 1, message: '至少选择一种内容类型', trigger: 'change' }], publish_root: [{ required: true, message: '请输入服务器发布根目录', trigger: 'blur' }], base_url: [{ required: true, message: '请输入 URL 根地址', trigger: 'blur' }, { type: 'url', message: '请输入有效的 URL', trigger: 'blur' }] }
+async function load() { loading.value = true; try { targets.value = await getPublishTargets() } catch (e) { ElMessage.error(e instanceof Error ? e.message : '发布配置加载失败') } finally { loading.value = false } }
+function openCreate() { editingId.value = undefined; Object.assign(form, { name: '', content_types: [], publish_root: '', base_url: '', enabled: true }); dialogVisible.value = true }
+function openEdit(item: PublishTarget) { editingId.value = item.id; Object.assign(form, { name: item.name, content_types: [...item.content_types], publish_root: item.publish_root || '', base_url: item.base_url || '', enabled: item.enabled }); dialogVisible.value = true }
+async function save() { if (!await formRef.value?.validate().catch(() => false)) return; saving.value = true; try { if (editingId.value) await updatePublishTarget(editingId.value, form); else await createPublishTarget(form); ElMessage.success(editingId.value ? '发布目标已更新' : '发布目标已创建'); dialogVisible.value = false; load() } catch (e) { ElMessage.error(e instanceof Error ? e.message : '保存失败') } finally { saving.value = false } }
+async function toggle(item: PublishTarget) { const next = !item.enabled; try { if (!next) await ElMessageBox.confirm(`禁用“${item.name}”后，新内容将无法选择此目标，确认继续吗？`, '禁用发布目标', { type: 'warning', confirmButtonText: '禁用', cancelButtonText: '取消' }); await updatePublishTargetStatus(item.id, next); ElMessage.success(next ? '发布目标已启用' : '发布目标已禁用'); load() } catch (e) { if (e instanceof Error) ElMessage.error(e.message) } }
+async function remove(item: PublishTarget) { try { await ElMessageBox.confirm(`确认删除“${item.name}”吗？已被内容引用时后端会拒绝删除。`, '删除发布目标', { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' }); await deletePublishTarget(item.id); ElMessage.success('发布目标已删除'); load() } catch (e) { if (e instanceof Error) ElMessage.error(e.message) } }
+onMounted(load)
+</script>
+<template>
+  <div class="page-shell">
+    <PageHeader title="发布配置" description="配置后端发布服务使用的服务器目录和 URL 根地址。此页面仅管理员可见。" eyebrow="DESTINATION CONFIG"><template #actions><el-button type="primary" :icon="Plus" @click="openCreate">新增发布目标</el-button></template></PageHeader>
+    <el-alert title="目录安全边界" description="服务器发布根目录只在管理员配置与审核核对页面展示，不会出现在普通员工的内容表单、详情或检索结果中。" type="warning" :closable="false" show-icon />
+    <section class="paper-card table-panel"><div class="table-toolbar"><span class="table-count">{{ targets.length }} 个发布目标</span><span class="muted">目录变化只需修改此处，无需修改前端页面</span></div><el-table v-loading="loading" :data="targets"><el-table-column prop="name" label="名称" min-width="160"><template #default="scope"><strong>{{ scope.row.name }}</strong></template></el-table-column><el-table-column label="适用内容类型" min-width="210"><template #default="scope"><el-tag v-for="type in scope.row.content_types" :key="type" type="info" effect="plain" class="type-tag">{{ contentTypeLabel(type) }}</el-tag></template></el-table-column><el-table-column label="服务器发布目录" min-width="220"><template #default="scope"><span class="mono path-text">{{ scope.row.publish_root }}</span></template></el-table-column><el-table-column label="URL 根地址" min-width="240"><template #default="scope"><a class="mono url-text" :href="scope.row.base_url" target="_blank" rel="noopener noreferrer">{{ scope.row.base_url }}</a></template></el-table-column><el-table-column label="状态" width="100"><template #default="scope"><el-switch :model-value="scope.row.enabled" inline-prompt active-text="启" inactive-text="停" @click.prevent="toggle(scope.row)" /></template></el-table-column><el-table-column label="操作" width="140" fixed="right"><template #default="scope"><el-button link type="primary" @click="openEdit(scope.row)">编辑</el-button><el-button link type="danger" @click="remove(scope.row)">删除</el-button></template></el-table-column></el-table></section>
+    <el-dialog v-model="dialogVisible" :title="editingId ? '编辑发布目标' : '新增发布目标'" width="590px"><el-form ref="formRef" :model="form" :rules="rules" label-position="top"><el-form-item label="名称" prop="name"><el-input v-model="form.name" placeholder="例如：PPT 发布区" /></el-form-item><el-form-item label="适用内容类型" prop="content_types"><el-select v-model="form.content_types" multiple placeholder="选择一种或多种类型" style="width:100%"><el-option v-for="(label, value) in CONTENT_TYPES" :key="value" :label="label" :value="value as ContentType" /></el-select></el-form-item><el-form-item label="服务器发布根目录" prop="publish_root"><el-input v-model="form.publish_root" class="mono-input" placeholder="/data/company/presentation/" /><span class="form-hint">由后端发布服务使用，不会暴露给普通员工。</span></el-form-item><el-form-item label="URL 根地址" prop="base_url"><el-input v-model="form.base_url" class="mono-input" placeholder="https://internal.example.com/presentation/" /></el-form-item><el-form-item label="是否启用"><el-switch v-model="form.enabled" active-text="启用" inactive-text="禁用" /></el-form-item></el-form><template #footer><el-button @click="dialogVisible = false">取消</el-button><el-button type="primary" :loading="saving" @click="save">保存配置</el-button></template></el-dialog>
+  </div>
+</template>
+<style scoped>
+.type-tag { margin: 2px 4px 2px 0; }.path-text, .url-text { font-size: 10px; }.url-text { color: var(--blue); }.muted { font-size: 11px; }.mono-input :deep(input) { font-family: "Cascadia Mono", monospace; font-size: 11px; }.form-hint { margin-top: 5px; color: #8a93a2; font-size: 11px; }
+</style>

@@ -1,0 +1,13 @@
+.env
+.venv/
+.pip-cache/
+__pycache__/
+.pytest_cache/
+.coverage
+htmlcov/
+storage/source/*
+storage/preview/*
+published/*
+!storage/source/.gitkeep
+!storage/preview/.gitkeep
+!published/.gitkeep
