@@ -5,6 +5,16 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.core.constants import ContentType, PublishStatus, ReviewStatus
 
 
+class ContentFileRead(BaseModel):
+    name: str
+    relative_path: str
+    size: int | None = None
+
+
+class ContentPreviewFile(ContentFileRead):
+    download_url: str | None = None
+
+
 class ContentPayload(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=5000)
@@ -31,6 +41,8 @@ class ContentRead(BaseModel):
     content_type: ContentType
     file_name: str | None = None
     file_size: int | None = None
+    files: list[ContentFileRead] = Field(default_factory=list)
+    source_is_directory: bool = False
     content_body: str | None = None
     created_by: int
     creator_name: str
@@ -53,3 +65,4 @@ class ContentPreview(BaseModel):
     content: str | None = None
     file_name: str | None = None
     file_size: int | None = None
+    files: list[ContentPreviewFile] = Field(default_factory=list)

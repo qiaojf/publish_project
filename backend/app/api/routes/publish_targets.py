@@ -4,6 +4,7 @@ from app.api.deps import AdminUser, CurrentUser, DbSession
 from app.schemas.common import ApiResponse
 from app.schemas.publish_target import (
     PublishTargetAdminRead,
+    PublishTargetConnectionRead,
     PublishTargetEmployeeRead,
     PublishTargetPayload,
     PublishTargetStatusUpdate,
@@ -38,6 +39,16 @@ def update_target(target_id: int, payload: PublishTargetPayload, db: DbSession, 
 @router.patch("/{target_id}/status", response_model=ApiResponse[PublishTargetAdminRead], summary="启用或禁用发布目标")
 def update_target_status(target_id: int, payload: PublishTargetStatusUpdate, db: DbSession, admin: AdminUser) -> ApiResponse[PublishTargetAdminRead]:
     return ApiResponse(data=PublishTargetService.update_status(db, target_id, payload, admin), message="发布目标状态已更新")
+
+
+@router.post("/{target_id}/test", response_model=ApiResponse[PublishTargetConnectionRead], summary="测试发布目标连接")
+def test_target_connection(
+    target_id: int, db: DbSession, admin: AdminUser,
+) -> ApiResponse[PublishTargetConnectionRead]:
+    return ApiResponse(
+        data=PublishTargetService.test_connection(db, target_id, admin),
+        message="连接成功",
+    )
 
 
 @router.delete("/{target_id}", response_model=ApiResponse[dict[str, bool]], summary="删除未使用的发布目标")

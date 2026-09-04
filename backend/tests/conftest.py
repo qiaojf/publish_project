@@ -46,6 +46,9 @@ def db(postgres_engine) -> Generator[Session, None, None]:
 
 @pytest.fixture
 def seeded(db: Session, tmp_path: Path) -> dict[str, int]:
+    settings = get_settings()
+    settings.source_storage_root = (tmp_path / "source").resolve()
+    settings.build_storage_root = (tmp_path / "build").resolve()
     users = [
         User(username="admin", password_hash=hash_password("admin123"), name="系统管理员", role="admin", status="active"),
         User(username="employee", password_hash=hash_password("employee123"), name="普通员工", role="employee", status="active"),
@@ -55,7 +58,7 @@ def seeded(db: Session, tmp_path: Path) -> dict[str, int]:
     db.add_all(users)
     db.flush()
     target = PublishTarget(
-        name="PPT 发布区", content_types=["ppt"], publish_root=str(tmp_path / "published"),
+        name="PPT 发布区", target_type="local", config={}, content_types=["ppt"], publish_root=str(tmp_path / "published"),
         base_url="http://localhost:8000/local-published/ppt/", enabled=True, created_by=users[0].id,
     )
     db.add(target)

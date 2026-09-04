@@ -1,7 +1,8 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, CheckConstraint, DateTime, ForeignKey, Identity, Index, String, Text
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, ForeignKey, Identity, Index, String, Text, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.constants import ContentType, PublishStatus, ReviewStatus
@@ -34,6 +35,10 @@ class Content(TimestampMixin, Base):
     content_type: Mapped[str] = mapped_column(String(50), nullable=False)
     source_file_name: Mapped[str | None] = mapped_column(String(255))
     source_file_path: Mapped[str | None] = mapped_column(String(1000))
+    source_files: Mapped[list[dict[str, object]]] = mapped_column(
+        JSONB, default=list, server_default=text("'[]'::jsonb"), nullable=False,
+    )
+    source_is_directory: Mapped[bool] = mapped_column(Boolean, default=False, server_default="false", nullable=False)
     content_body: Mapped[str | None] = mapped_column(Text)
     publish_target_id: Mapped[int | None] = mapped_column(BigInteger, ForeignKey("publish_targets.id", ondelete="RESTRICT"))
     review_status: Mapped[str] = mapped_column(String(20), default=ReviewStatus.DRAFT.value, server_default="draft", nullable=False)

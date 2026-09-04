@@ -1,4 +1,8 @@
+from __future__ import annotations
+
 from pathlib import Path
+from pathlib import PurePosixPath
+from urllib.parse import quote
 
 from fastapi import UploadFile
 from sqlalchemy.orm import Session
@@ -14,10 +18,10 @@ from app.repositories.operation_log_repository import OperationLogRepository
 from app.repositories.publish_target_repository import PublishTargetRepository
 from app.repositories.review_repository import ReviewRepository
 from app.schemas.common import PageResult
-from app.schemas.content import ContentPayload, ContentPreview, ContentRead
+from app.schemas.content import ContentPayload, ContentPreview, ContentPreviewFile, ContentRead
 from app.services.publish_target_service import PublishTargetService
 from app.services.serializers import content_to_read
-from app.utils.files import remove_source, save_upload, validate_upload_name
+from app.utils.files import remove_source, save_uploads, validate_relative_upload_path
 from app.utils.document_preview import build_document_preview
 
 
@@ -28,7 +32,29 @@ class ContentService:
             return None
         candidate = Path(content.source_file_path).resolve()
         root = get_settings().source_storage_root.resolve()
-        return candidate if candidate.is_relative_to(root) and candidate.is_file() else None
+        return candidate if candidate.is_relative_to(root) and candidate.exists() else None
+
+    @staticmethod
+    def _source_metadata(content: Content) -> list[dict[str, object]]:
+        if content.source_files:
+            return list(content.source_files)
+        if content.source_file_name:
+            return [{"name": content.source_file_name, "relative_path": content.source_file_name, "size": None}]
+        return []
+
+    @classmethod
+    def _source_entry(cls, content: Content, relative_path: str) -> Path | None:
+        source = cls._preview_source(content)
+        if not source:
+            return None
+        if source.is_file():
+            expected = content.source_file_name or source.name
+            return source if relative_path == expected else None
+        normalized = validate_relative_upload_path(
+            relative_path, ContentType(content.content_type), enforce_extension=False,
+        )
+        candidate = source.joinpath(*PurePosixPath(normalized).parts).resolve()
+        return candidate if candidate.is_relative_to(source.resolve()) and candidate.is_file() else None
 
     @staticmethod
     def _html_preview(content: Content, source: Path | None) -> str | None:
@@ -77,21 +103,41 @@ class ContentService:
         return content_to_read(content, include_body=True)
 
     @staticmethod
-    def _validate_payload(db: Session, payload: ContentPayload, upload: UploadFile | None, existing: Content | None = None) -> None:
+    def _validate_payload(
+        db: Session, payload: ContentPayload, uploads: list[UploadFile], relative_paths: list[str],
+        existing: Content | None = None,
+    ) -> None:
         target = PublishTargetRepository.get_by_id(db, payload.publish_target_id) if payload.publish_target_id else None
         PublishTargetService.validate_for_content(target, payload.content_type.value)
         has_existing_file = bool(existing and existing.source_file_path)
-        if not upload and has_existing_file and existing:
-            existing_name = existing.source_file_name or Path(existing.source_file_path or "").name
-            validate_upload_name(existing_name, payload.content_type)
-        if not upload and not has_existing_file and not payload.content_body:
+        if uploads:
+            paths = relative_paths or [upload.filename or "" for upload in uploads]
+            if relative_paths and len(relative_paths) != len(uploads):
+                raise InvalidFileError("文件与相对路径数量不一致")
+            is_directory = len(uploads) > 1 or any("/" in path.replace("\\", "/").strip("/") for path in paths)
+            for upload, relative_path in zip(uploads, paths):
+                validate_relative_upload_path(
+                    relative_path or upload.filename or "", payload.content_type,
+                    enforce_extension=not is_directory,
+                )
+        elif has_existing_file and existing:
+            metadata = ContentService._source_metadata(existing)
+            for item in metadata:
+                validate_relative_upload_path(
+                    str(item.get("relative_path") or item.get("name") or ""), payload.content_type,
+                    enforce_extension=not existing.source_is_directory,
+                )
+        if not uploads and not has_existing_file and not payload.content_body:
             raise InvalidFileError("请上传内容文件或填写页面内容")
         if payload.content_type == ContentType.DYNAMIC and not payload.content_body:
             raise InvalidFileError("动态页面必须填写内容数据")
 
     @classmethod
-    async def create(cls, db: Session, payload: ContentPayload, upload: UploadFile | None, current_user: User) -> ContentRead:
-        cls._validate_payload(db, payload, upload)
+    async def create(
+        cls, db: Session, payload: ContentPayload, uploads: list[UploadFile], relative_paths: list[str],
+        current_user: User,
+    ) -> ContentRead:
+        cls._validate_payload(db, payload, uploads, relative_paths)
         stored_path: str | None = None
         try:
             content = ContentRepository.create(
@@ -99,10 +145,13 @@ class ContentService:
                 content_type=payload.content_type.value, content_body=payload.content_body,
                 publish_target_id=payload.publish_target_id, created_by=current_user.id,
             )
-            if upload:
-                original_name, stored_path, _ = await save_upload(upload, content.id, payload.content_type)
-                content.source_file_name = original_name
-                content.source_file_path = stored_path
+            if uploads:
+                stored = await save_uploads(uploads, relative_paths, content.id, payload.content_type)
+                stored_path = stored.path
+                content.source_file_name = stored.display_name
+                content.source_file_path = stored.path
+                content.source_files = stored.files
+                content.source_is_directory = stored.is_directory
             OperationLogRepository.create(db, user_id=current_user.id, action="create_content", target_type="content", target_id=content.id, message=f"创建内容 {content.title}")
             db.commit()
         except Exception:
@@ -112,7 +161,10 @@ class ContentService:
         return content_to_read(cls._get_model(db, content.id), include_body=True)
 
     @classmethod
-    async def update(cls, db: Session, content_id: int, payload: ContentPayload, upload: UploadFile | None, current_user: User) -> ContentRead:
+    async def update(
+        cls, db: Session, content_id: int, payload: ContentPayload, uploads: list[UploadFile],
+        relative_paths: list[str], current_user: User,
+    ) -> ContentRead:
         content = cls._get_model(db, content_id)
         if current_user.role != "admin" and content.created_by != current_user.id:
             raise PermissionDenied("只能编辑自己创建的内容")
@@ -120,7 +172,7 @@ class ContentService:
             raise BusinessRuleError("内容正在发布，暂不能编辑")
         if current_user.role != "admin" and content.review_status not in {ReviewStatus.DRAFT.value, ReviewStatus.REJECTED.value}:
             raise BusinessRuleError("当前审核状态不允许编辑")
-        cls._validate_payload(db, payload, upload, content)
+        cls._validate_payload(db, payload, uploads, relative_paths, content)
         old_path = content.source_file_path
         new_path: str | None = None
         try:
@@ -131,10 +183,13 @@ class ContentService:
             content.publish_target_id = payload.publish_target_id
             content.content_body = payload.content_body
             content.updated_at = utc_now()
-            if upload:
-                original_name, new_path, _ = await save_upload(upload, content.id, payload.content_type)
-                content.source_file_name = original_name
-                content.source_file_path = new_path
+            if uploads:
+                stored = await save_uploads(uploads, relative_paths, content.id, payload.content_type)
+                new_path = stored.path
+                content.source_file_name = stored.display_name
+                content.source_file_path = stored.path
+                content.source_files = stored.files
+                content.source_is_directory = stored.is_directory
             OperationLogRepository.create(db, user_id=current_user.id, action="update_content", target_type="content", target_id=content.id, message=f"更新内容 {content.title}")
             db.commit()
         except Exception:
@@ -184,6 +239,18 @@ class ContentService:
         content = cls._get_model(db, content_id)
         cls._ensure_view(content, current_user)
         source = cls._preview_source(content)
+        metadata = cls._source_metadata(content)
+        if source and (content.source_is_directory or len(metadata) > 1):
+            files = [
+                ContentPreviewFile(
+                    name=str(item.get("name") or PurePosixPath(str(item.get("relative_path") or "")).name),
+                    relative_path=str(item.get("relative_path") or item.get("name") or ""),
+                    size=int(item["size"]) if item.get("size") is not None else None,
+                    download_url=f"/contents/{content.id}/preview/files/{quote(str(item.get('relative_path') or item.get('name') or ''), safe='/')}",
+                )
+                for item in metadata
+            ]
+            return ContentPreview(preview_type="files", files=files)
         if content.content_type in {ContentType.HTML.value, ContentType.DYNAMIC.value}:
             page = cls._html_preview(content, source)
             if page:
@@ -192,7 +259,7 @@ class ContentService:
             return ContentPreview(preview_type="image", preview_url=f"/contents/{content.id}/preview/file")
         if source and content.content_type == ContentType.PDF.value:
             return ContentPreview(preview_type="pdf", preview_url=f"/contents/{content.id}/preview/file")
-        if source and content.content_type in {ContentType.PPT.value, ContentType.WORD.value, ContentType.EXCEL.value}:
+        if source and source.is_file() and content.content_type in {ContentType.WORD.value, ContentType.EXCEL.value}:
             document = build_document_preview(source, content.content_type)
             if document:
                 return ContentPreview(preview_type="text", content=document)
@@ -212,6 +279,17 @@ class ContentService:
         content = cls._get_model(db, content_id)
         cls._ensure_view(content, current_user)
         source = cls._preview_source(content)
-        if not source:
+        if not source or not source.is_file():
             raise ResourceNotFound("预览源文件不存在")
         return source, content.source_file_name or source.name
+
+    @classmethod
+    def preview_source_file(
+        cls, db: Session, content_id: int, relative_path: str, current_user: User,
+    ) -> tuple[Path, str]:
+        content = cls._get_model(db, content_id)
+        cls._ensure_view(content, current_user)
+        source = cls._source_entry(content, relative_path)
+        if not source:
+            raise ResourceNotFound("源文件不存在")
+        return source, source.name

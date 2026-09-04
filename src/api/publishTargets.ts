@@ -17,3 +17,6 @@ export const updatePublishTargetStatus = async (id: number, enabled: boolean): P
 export const deletePublishTarget = async (id: number): Promise<DeleteResult> => useMock
   ? { deleted: await mockDb.deleteTarget(id) }
   : request.delete<DeleteResult>(`/publish-targets/${id}`).then(unwrap)
+export const testPublishTarget = (id: number): Promise<{ connected: boolean }> => useMock
+  ? Promise.resolve({ connected: true })
+  : request.post<{ connected: boolean }>(`/publish-targets/${id}/test`).then(unwrap)

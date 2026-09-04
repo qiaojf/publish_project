@@ -9,7 +9,7 @@ from app.db.models.operation_log import OperationLog
 from app.db.models.publish_record import PublishRecord
 from app.db.models.review_record import ReviewRecord
 from app.db.models.user import User
-from app.publishers.factory import PublisherFactory
+from app.target_publishers.factory import TargetPublisherFactory
 from tests.conftest import auth_headers, create_ppt
 
 
@@ -140,7 +140,7 @@ def test_publish_failure_and_republish_history(
     client.post(f"/api/contents/{content_id}/submit", headers=employee)
 
     class FailingPublisher:
-        def publish(self, _content, _target):
+        def publish(self, _artifact, _target):
             with Session(bind=db.get_bind()) as observer:
                 visible_content = observer.get(Content, content_id)
                 visible_record = observer.scalar(
@@ -152,7 +152,7 @@ def test_publish_failure_and_republish_history(
                 assert visible_record and visible_record.status == "publishing"
             raise RuntimeError("simulated publisher failure")
 
-    monkeypatch.setattr(PublisherFactory, "create", classmethod(lambda cls, content_type: FailingPublisher()))
+    monkeypatch.setattr(TargetPublisherFactory, "create", classmethod(lambda cls, target_type: FailingPublisher()))
     failed = client.post(f"/api/reviews/{content_id}/approve", json={"comment": "审核通过"}, headers=admin)
     assert failed.status_code == 200
     assert failed.json()["data"]["review_status"] == "approved"

@@ -2,7 +2,7 @@
 
 面向公司内部的内容提交、审核、自动发布与检索平台。前端只负责用户交互和 REST API 调用，不读取服务器目录、不处理文件转换，也不自行拼接发布 URL。
 
-配套 FastAPI + PostgreSQL 后端位于 `backend/`。本地一键启动、联调和验收见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)，验收结果见 [`docs/LOCAL_INTEGRATION_TEST_REPORT.md`](docs/LOCAL_INTEGRATION_TEST_REPORT.md)。
+配套 FastAPI + PostgreSQL 后端位于 `backend/`。本地一键启动、联调和验收见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)，服务器生产部署见 [`docs/SERVER_DEPLOYMENT_README.md`](docs/SERVER_DEPLOYMENT_README.md)，验收结果见 [`docs/LOCAL_INTEGRATION_TEST_REPORT.md`](docs/LOCAL_INTEGRATION_TEST_REPORT.md)。
 
 ## 技术栈
 
@@ -74,6 +74,14 @@ Mock 模式账号保存在浏览器本地；真实 API 模式由后端 Seed 创�
 设置 `VITE_USE_MOCK=false`，并将 `VITE_API_BASE_URL` 指向后端统一 `/api` 地址。所有页面只依赖 `src/api/` 中的接口模块；如果后端响应字段存在差异，只需在该层适配。
 
 Axios 会统一添加 `Authorization: Bearer {token}`，并处理网络错误、401 登录失效与 403 权限不足。
+
+## 多文件与多发布目标
+
+- 新建或编辑内容时可选择多个文件，也可选择文件夹并保留相对目录结构；新选择会整体替换已有文件。
+- 多文件/文件夹的内容预览只展示可下载的文件清单。单个 PPT 也按普通文件展示文件名，不再生成与原文不一致的文字预览。
+- 管理员可配置公司服务器目录（Local）、SFTP、GitHub Repository、GitHub Pages、Microsoft OneDrive 和 Dropbox，并在发布配置页执行“测试连接”。
+- 普通员工只会看到目标名称、类型和适用内容类型，不会收到物理目录、仓库、服务器或凭证配置。
+- Token、密码、Client Secret 与私钥只由后端通过 `credential_ref` 对应的环境变量读取。具体字段、变量命名及扩展 Adapter 方法见 [`backend/README.md`](backend/README.md)。
 
 ## 页面路由
 

@@ -6,7 +6,14 @@ import type { ContentItem, ContentPayload, ContentQuery, PreviewData } from '@/t
 
 function toFormData(payload: ContentPayload) {
   const data = new FormData()
-  Object.entries(payload).forEach(([key, value]) => { if (value !== undefined) data.append(key, value instanceof File ? value : String(value)) })
+  Object.entries(payload).forEach(([key, value]) => {
+    if (value === undefined || key === 'files' || key === 'file_name' || key === 'file_size') return
+    data.append(key, String(value))
+  })
+  payload.files?.forEach((item) => {
+    data.append('files', item.file, item.file.name)
+    data.append('file_paths', item.relative_path)
+  })
   return data
 }
 export const getContents = (params: ContentQuery): Promise<PageResult<ContentItem>> => useMock ? mockDb.getContents(params) : request.get<PageResult<ContentItem>>('/contents', { params: cleanParams(params) }).then(unwrap)
@@ -21,3 +28,7 @@ export const publishContent = (id: number): Promise<ContentItem> => useMock ? mo
 export const republishContent = (id: number): Promise<ContentItem> => useMock ? mockDb.republishContent(id) : request.post<ContentItem>(`/contents/${id}/republish`).then(unwrap)
 export const getContentPreview = (id: number): Promise<PreviewData> => useMock ? mockDb.preview(id) : request.get<PreviewData>(`/contents/${id}/preview`).then(unwrap)
 export const getContentPreviewFile = (id: number): Promise<Blob> => request.get<Blob>(`/contents/${id}/preview/file`, { responseType: 'blob' }).then((response) => response.data)
+export const getContentPreviewSourceFile = (id: number, relativePath: string): Promise<Blob> => {
+  const encoded = relativePath.split('/').map(encodeURIComponent).join('/')
+  return request.get<Blob>(`/contents/${id}/preview/files/${encoded}`, { responseType: 'blob' }).then((response) => response.data)
+}

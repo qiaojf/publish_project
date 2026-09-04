@@ -1,12 +1,12 @@
 from sqlalchemy.orm import Session
 
+from app.content_processors.factory import ContentProcessorFactory
 from app.core.constants import PublishRecordStatus, PublishStatus, ReviewAction, ReviewStatus
-from app.core.exceptions import BusinessRuleError, ResourceNotFound
+from app.core.exceptions import BusinessRuleError, PublishError, ResourceNotFound
 from app.db.base import utc_now
 from app.db.models.content import Content
 from app.db.models.publish_record import PublishRecord
 from app.db.models.user import User
-from app.publishers.factory import PublisherFactory
 from app.repositories.content_repository import ContentRepository
 from app.repositories.operation_log_repository import OperationLogRepository
 from app.repositories.publish_record_repository import PublishRecordRepository
@@ -15,6 +15,7 @@ from app.repositories.review_repository import ReviewRepository
 from app.schemas.content import ContentRead
 from app.services.publish_target_service import PublishTargetService
 from app.services.serializers import content_to_read
+from app.target_publishers.factory import TargetPublisherFactory
 
 
 class PublishService:
@@ -89,16 +90,18 @@ class PublishService:
         # SessionLocal keeps loaded values available because expire_on_commit=False.
         db.commit()
         try:
-            publisher = PublisherFactory.create(record.content.content_type)
-            result = publisher.publish(record.content, record.publish_target)
+            processor = ContentProcessorFactory.create(record.content.content_type)
+            artifact = processor.process(record.content)
+            publisher = TargetPublisherFactory.create(record.publish_target.target_type)
+            result = publisher.publish(artifact, record.publish_target)
             record.status = PublishRecordStatus.SUCCESS.value
-            record.output_path = result.output_path
-            record.publish_url = result.view_url
-            record.message = "发布成功"
+            record.output_path = result.remote_path
+            record.publish_url = result.publish_url
+            record.message = result.message or "发布成功"
             record.error_message = None
             record.finished_at = utc_now()
             record.content.publish_status = PublishStatus.PUBLISHED.value
-            record.content.view_url = result.view_url
+            record.content.view_url = result.publish_url
             record.content.published_at = utc_now()
             record.content.updated_at = utc_now()
             db.commit()
@@ -108,7 +111,9 @@ class PublishService:
             if not failed_record:
                 raise
             failed_record.status = PublishRecordStatus.FAILED.value
-            failed_record.error_message = str(exc)[:4000] or exc.__class__.__name__
+            failed_record.error_message = (
+                str(exc)[:4000] if isinstance(exc, PublishError) else "发布过程中发生未预期错误"
+            )
             failed_record.finished_at = utc_now()
             failed_record.content.review_status = ReviewStatus.APPROVED.value
             failed_record.content.publish_status = PublishStatus.FAILED.value

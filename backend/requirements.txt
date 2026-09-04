@@ -11,3 +11,5 @@ pwdlib[argon2]>=0.2.1,<1.0
 pytest>=8.4,<9.0
 pytest-cov>=6.2,<7.0
 httpx>=0.28,<1.0
+paramiko>=3.5,<5.0
+truststore>=0.10,<1.0

@@ -39,14 +39,31 @@ def _payload(
     return ContentPayload(title=title, description=description, category=category, content_type=content_type, publish_target_id=publish_target_id, content_body=content_body)
 
 
+def _uploads(
+    file: UploadFile | None, files: list[UploadFile] | None, file_paths: list[str] | None,
+) -> tuple[list[UploadFile], list[str]]:
+    uploads = list(files or [])
+    paths = list(file_paths or [])
+    if file:
+        uploads.append(file)
+        paths.append(file.filename or "")
+    return uploads, paths
+
+
 @router.post("", response_model=ApiResponse[ContentRead], status_code=status.HTTP_201_CREATED, summary="新建内容")
 async def create_content(
     db: DbSession, current_user: CurrentUser, title: Annotated[str, Form()],
     content_type: Annotated[ContentType, Form()], description: Annotated[str | None, Form()] = None,
     category: Annotated[str | None, Form()] = None, publish_target_id: Annotated[int | None, Form()] = None,
     content_body: Annotated[str | None, Form()] = None, file: Annotated[UploadFile | None, File()] = None,
+    files: Annotated[list[UploadFile] | None, File()] = None,
+    file_paths: Annotated[list[str] | None, Form()] = None,
 ) -> ApiResponse[ContentRead]:
-    data = await ContentService.create(db, _payload(title, description, category, content_type, publish_target_id, content_body), file, current_user)
+    uploads, paths = _uploads(file, files, file_paths)
+    data = await ContentService.create(
+        db, _payload(title, description, category, content_type, publish_target_id, content_body),
+        uploads, paths, current_user,
+    )
     return ApiResponse(data=data, message="内容已创建")
 
 
@@ -61,8 +78,14 @@ async def update_content(
     content_type: Annotated[ContentType, Form()], description: Annotated[str | None, Form()] = None,
     category: Annotated[str | None, Form()] = None, publish_target_id: Annotated[int | None, Form()] = None,
     content_body: Annotated[str | None, Form()] = None, file: Annotated[UploadFile | None, File()] = None,
+    files: Annotated[list[UploadFile] | None, File()] = None,
+    file_paths: Annotated[list[str] | None, Form()] = None,
 ) -> ApiResponse[ContentRead]:
-    data = await ContentService.update(db, content_id, _payload(title, description, category, content_type, publish_target_id, content_body), file, current_user)
+    uploads, paths = _uploads(file, files, file_paths)
+    data = await ContentService.update(
+        db, content_id, _payload(title, description, category, content_type, publish_target_id, content_body),
+        uploads, paths, current_user,
+    )
     return ApiResponse(data=data, message="内容已更新")
 
 
@@ -97,3 +120,12 @@ def preview_content_file(content_id: int, db: DbSession, current_user: CurrentUs
     path, file_name = ContentService.preview_file(db, content_id, current_user)
     media_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
     return FileResponse(path, media_type=media_type, filename=file_name, content_disposition_type="inline")
+
+
+@router.get("/{content_id}/preview/files/{file_path:path}", response_class=FileResponse, summary="读取多文件内容中的源文件")
+def preview_content_source_file(
+    content_id: int, file_path: str, db: DbSession, current_user: CurrentUser,
+) -> FileResponse:
+    path, file_name = ContentService.preview_source_file(db, content_id, file_path, current_user)
+    media_type = mimetypes.guess_type(file_name)[0] or "application/octet-stream"
+    return FileResponse(path, media_type=media_type, filename=file_name, content_disposition_type="attachment")

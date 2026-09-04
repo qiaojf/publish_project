@@ -7,10 +7,13 @@ import type { ContentItem, ContentPayload, ContentType } from '@/types/content'
 import type { PublishTarget } from '@/types/publish'
 
 const props = defineProps<{ initial?: ContentItem; targets: PublishTarget[] }>()
-const model = reactive<ContentPayload>({ title: '', description: '', category: '', content_type: 'ppt', publish_target_id: undefined, content_body: '', file: undefined })
+const model = reactive<ContentPayload>({ title: '', description: '', category: '', content_type: 'ppt', publish_target_id: undefined, content_body: '', files: [] })
 const formEl = ref<FormInstance>()
 const filteredTargets = computed(() => props.targets.filter((item) => item.enabled && item.content_types.includes(model.content_type)))
 const needsTextBody = computed(() => ['html', 'dynamic'].includes(model.content_type))
+const existingFiles = computed(() => props.initial?.files?.length
+  ? props.initial.files
+  : props.initial?.file_name ? [{ name: props.initial.file_name, relative_path: props.initial.file_name, size: props.initial.file_size }] : [])
 const rules: FormRules<ContentPayload> = {
   title: [{ required: true, message: '请输入内容标题', trigger: 'blur' }],
   category: [{ required: true, message: '请选择分类', trigger: 'change' }],
@@ -20,9 +23,9 @@ const rules: FormRules<ContentPayload> = {
 
 watch(() => props.initial, (value) => {
   if (!value) return
-  Object.assign(model, { title: value.title, description: value.description, category: value.category, content_type: value.content_type, publish_target_id: value.publish_target_id, content_body: value.content_body, file_name: value.file_name, file_size: value.file_size })
+  Object.assign(model, { title: value.title, description: value.description, category: value.category, content_type: value.content_type, publish_target_id: value.publish_target_id, content_body: value.content_body, file_name: value.file_name, file_size: value.file_size, files: [] })
 }, { immediate: true })
-watch(() => model.content_type, () => { if (!filteredTargets.value.some((item) => item.id === model.publish_target_id)) model.publish_target_id = undefined })
+watch(() => model.content_type, () => { model.files = []; if (!filteredTargets.value.some((item) => item.id === model.publish_target_id)) model.publish_target_id = undefined })
 
 defineExpose({ model, validate: () => formEl.value?.validate() })
 </script>
@@ -38,7 +41,7 @@ defineExpose({ model, validate: () => formEl.value?.validate() })
       <el-form-item label="发布目标" prop="publish_target_id"><el-select v-model="model.publish_target_id" placeholder="选择适用的发布目标"><el-option v-for="target in filteredTargets" :key="target.id" :label="target.name" :value="target.id" /></el-select><span class="field-help">仅显示支持当前内容类型的已启用目标</span></el-form-item>
     </div>
     <el-form-item v-if="needsTextBody" label="页面内容"><el-input v-model="model.content_body" type="textarea" :rows="8" placeholder="可直接填写 HTML / 动态页面内容，或在下方上传文件" /></el-form-item>
-    <el-form-item :label="needsTextBody ? '内容文件（可选）' : '内容文件'" :required="!needsTextBody"><FileUploader v-model="model.file" :content-type="model.content_type" :existing-name="initial?.file_name ?? undefined" :existing-size="initial?.file_size ?? undefined" /></el-form-item>
+    <el-form-item :label="needsTextBody ? '内容文件或文件夹（可选）' : '内容文件或文件夹'" :required="!needsTextBody"><FileUploader v-model="model.files" :content-type="model.content_type" :existing-files="existingFiles" /></el-form-item>
   </el-form>
 </template>
 <style scoped>

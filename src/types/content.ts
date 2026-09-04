@@ -4,6 +4,17 @@ export type ReviewStatus = 'draft' | 'pending' | 'approved' | 'rejected'
 export type PublishStatus = 'unpublished' | 'publishing' | 'published' | 'failed'
 export type ContentType = 'html' | 'dynamic' | 'ppt' | 'pdf' | 'word' | 'excel' | 'image' | 'file'
 
+export interface ContentFile {
+  name: string
+  relative_path: string
+  size?: number | null
+}
+
+export interface UploadSelection {
+  file: File
+  relative_path: string
+}
+
 export interface ContentItem {
   id: number
   title: string
@@ -12,6 +23,8 @@ export interface ContentItem {
   content_type: ContentType
   file_name?: string | null
   file_size?: number | null
+  files?: ContentFile[]
+  source_is_directory?: boolean
   content_body?: string | null
   created_by: number
   creator_name: string
@@ -42,7 +55,7 @@ export interface ContentPayload {
   category: string
   content_type: ContentType
   publish_target_id?: number
-  file?: File
+  files?: UploadSelection[]
   file_name?: string
   file_size?: number
   content_body?: string
@@ -54,4 +67,5 @@ export type PreviewData =
   | { preview_type: 'image'; preview_url: string }
   | { preview_type: 'pdf'; preview_url: string }
   | { preview_type: 'file'; preview_url?: string | null; file_name: string; file_size?: number | null }
+  | { preview_type: 'files'; files: Array<ContentFile & { download_url?: string | null }> }
   | { preview_type: 'unsupported' }

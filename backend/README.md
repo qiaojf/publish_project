@@ -139,7 +139,7 @@ pytest --cov=app --cov-report=term-missing
 2. `TEST_DATABASE_URL` 不能与 `DATABASE_URL` 相同。
 3. 测试库不可用时 PostgreSQL 集成测试会明确跳过，单元测试仍会运行。
 
-覆盖范围包括认证与禁用 Token、角色权限、数据库约束、内容状态流转、驳回重提、发布成功/失败、重新发布、目录越界、文件类型与大小、员工字段脱敏、搜索、审计记录和八个 Publisher。
+覆盖范围包括认证与禁用 Token、角色权限、数据库约束、内容状态流转、驳回重提、发布成功/失败、重新发布、目录越界、文件类型与大小、员工字段脱敏、搜索、审计记录、内容处理器和六类发布目标 Adapter。
 
 ## 8. 用户角色与权限
 
@@ -166,40 +166,88 @@ unpublished -> publishing -> published
 
 审核通过采用两阶段事务：事务 A 锁定内容并提交 `approved/publishing`、审核记录、发布记录和操作日志；文件发布在事务外执行；事务 B 写入成功或失败结果。失败时审核状态仍保持 `approved`，可由管理员重新发布，每次尝试都会产生新的 `publish_records` 记录。
 
-## 10. 文件存储与发布目录
+## 10. 多文件与文件夹上传
 
-上传源文件保存在：
+前端可一次选择多个文件，或选择一个文件夹并保留相对目录结构。后端把一个内容的源文件保存在独立 UUID 目录中，并在 `contents.source_files` JSONB 中仅记录文件名、相对路径和大小。上传总大小受 `MAX_UPLOAD_SIZE_MB` 限制；绝对路径、`..`、重复路径和越界路径都会被拒绝。
+
+多个文件或文件夹的详情预览只返回文件清单，不解析文件正文；单个 PDF、图片仍在线预览，PPT 统一按普通文件显示名称和下载入口。
+
+## 11. 多发布目标架构
+
+发布职责分为两层：
 
 ```text
-local-data/source/{content_id}/{uuid}.{ext}
+Content -> ContentProcessorFactory -> PublishArtifact
+        -> PublishService -> TargetPublisherFactory -> TargetPublishResult
 ```
 
-上传会校验文件名、扩展名、大小和最终解析路径，拒绝绝对路径、`..`、斜杠及反斜杠逃逸。源文件目录不会挂载为公开静态目录。
+- `app/content_processors/`：按 HTML、Dynamic、PPT、PDF、Word、Excel、Image、File 生成与目标无关的 Artifact。
+- `app/target_publishers/`：独立实现 `local`、`sftp`、`github`、`github_pages`、`onedrive`、`dropbox`。
+- `PublishService`：只编排处理器和目标 Adapter，统一写入内容状态和 `publish_records`。
+- OneDrive 与 Dropbox 收到目录 Artifact 时由 `ArtifactPackagingService` 自动压缩为 ZIP。
 
-发布目标由管理员配置：
+`publish_targets` 的通用字段：
 
-- `content_types`：该目标允许的内容类型，数据库使用 PostgreSQL `JSONB`。
-- `publish_root`：服务器物理输出根目录，只向管理员返回。
-- `base_url`：外部访问 URL 根地址。
-- `enabled`：停用后不能用于新发布；已有记录引用的目标不能物理删除。
+- `target_type`：上述六种固定类型，数据库有 CHECK Constraint。
+- `content_types`：允许发布的内容类型。
+- `config`：平台非敏感 JSONB 配置。
+- `credential_ref`：环境变量凭证引用名。
+- `publish_root`、`base_url`：继续供 Local 目标使用，兼容已有数据。
 
-最终目录名为安全的 `{content_id}-{slug}`。后端在验证 `publish_root` 后写入目录，并基于 `base_url` 返回 `view_url`；前端不得读取物理路径或自行拼接 URL。本地 Seed 目标位于 `local-data/published/`，仅在 `APP_ENV=development` 时由 FastAPI 的 `/local-published` 静态路径提供开发访问。
+各类型 `config`：
 
-## 11. Publisher 架构与扩展
+| 类型 | 非敏感配置 |
+|---|---|
+| Local | `publish_root`、`base_url`（旧字段） |
+| SFTP | `host`、`port`、`username`、`remote_root`、`base_url` |
+| GitHub | `owner`、`repo`、`branch`、`repo_path` |
+| GitHub Pages | GitHub 字段及 `base_url` |
+| OneDrive | `tenant_id`、`client_id`、`drive_id`、`folder_path` |
+| Dropbox | `folder_path` |
 
-`app/publishers/` 包含统一 `BasePublisher`、`PublishResult` 和八个实现：HTML、Dynamic、PPT、PDF、Word、Excel、Image、File。Publisher 只负责生成文件并返回相对路径、物理输出路径和访问 URL；数据库状态统一由 `PublishService` 管理。
+管理员可调用 `POST /api/publish-targets/{id}/test` 测试连接；此操作不发布内容，也不创建 `PublishRecord`。自动测试使用 Mock Transport / Fake SFTP，不会访问真实第三方账号。
 
-新增内容类型的 Publisher：
+GitHub Pages 目标会校验配置的 Branch 是否与仓库实际的 Pages 发布分支一致。发布时系统在提交文件后继续等待对应 commit 构建完成，只有 Pages 部署成功才记录发布成功并返回访问地址。
 
-1. 在 `app/core/constants.py` 增加类型及允许的文件扩展名。
-2. 在 `app/publishers/` 新建类并继承 `BasePublisher`。
-3. 实现 `publish(content, target) -> PublishResult`，使用 `prepare_output` 和 `safe_child` 做目录约束。
-4. 在 `PublisherFactory._publishers` 注册映射。
-5. 在数据库约束的 Alembic Migration 中加入新枚举值，并补充成功、失败与路径安全测试。
+## 12. 凭证与安全
 
-不要在 Publisher 内直接提交数据库事务，也不要在 API Router 中实现文件转换逻辑。
+Token、密码、Client Secret、私钥和 Passphrase 禁止写入 `config`。`CredentialService` 按以下规则在真正连接目标时延迟读取凭证：优先使用操作系统进程环境变量，未设置时读取 `backend/.env`。
 
-## 12. 项目结构
+```text
+credential_ref=github_company_pages + key=token
+-> PUBLISH_CREDENTIAL_GITHUB_COMPANY_PAGES_TOKEN
+```
+
+常用示例：
+
+```env
+PUBLISH_CREDENTIAL_GITHUB_COMPANY_PAGES_TOKEN=...
+PUBLISH_CREDENTIAL_ONEDRIVE_COMPANY_CLIENT_SECRET=...
+PUBLISH_CREDENTIAL_DROPBOX_COMPANY_TOKEN=...
+PUBLISH_CREDENTIAL_SFTP_INTERNAL_PASSWORD=...
+PUBLISH_CONNECTION_TIMEOUT_SECONDS=30
+PUBLISH_OPERATION_TIMEOUT_SECONDS=300
+```
+
+GET API 和日志永远不返回 Secret；普通员工响应只包含目标 `id`、`name`、`target_type`、`content_types`、`enabled`。外部凭证缺失不影响应用启动或 Local 发布，只有调用对应远程目标时才返回脱敏错误。
+
+GitHub、OneDrive 和 Dropbox 的 HTTPS 请求使用操作系统证书存储进行 TLS 校验，兼容由公司 Windows 证书策略管理的代理或根证书；系统不会通过关闭证书校验来绕过连接问题。
+
+第三方实现依据官方接口：[GitHub Git Data REST API](https://docs.github.com/en/rest/git)、[Microsoft Graph 文件上传](https://learn.microsoft.com/en-us/graph/api/driveitem-put-content?view=graph-rest-1.0)、[Dropbox 上传会话](https://developers.dropbox.com/dbx-performance-guide) 与 [Paramiko SFTP](https://docs.paramiko.org/en/stable/api/sftp.html)。
+
+## 13. 新增发布平台
+
+以后增加 S3、Azure Blob、Google Drive 或 NAS 时，只需：
+
+1. 增加 `target_type` 与配置校验。
+2. 实现 `BaseTargetPublisher`。
+3. 注册 `TargetPublisherFactory`。
+4. 在管理员动态表单增加字段。
+5. 补充完全 Mock 的连接、上传、失败和重试测试。
+
+无需修改员工提交、管理员审核、Content、ReviewRecord 或主发布流程。
+
+## 14. 项目结构
 
 ```text
 backend/
@@ -208,13 +256,16 @@ backend/
 │  ├─ api/                  # 路由与依赖
 │  ├─ core/                 # 配置、安全、枚举、异常
 │  ├─ db/models/            # 六张业务表 ORM
-│  ├─ publishers/           # 八个内容发布器
+│  ├─ content_processors/   # 内容处理与 Artifact 生成
+│  ├─ target_publishers/    # 六种可插拔目标 Adapter
+│  ├─ publishers/           # 旧内容发布器兼容层
 │  ├─ repositories/         # SQL 查询和持久化
 │  ├─ schemas/              # Pydantic 请求/响应模型
 │  ├─ services/             # 业务状态机和事务边界
 │  └─ utils/                # 时间、文件、路径、slug
 ├─ scripts/seed.py
-├─ ../local-data/source/    # 本地配置的私有上传源文件（可通过环境变量调整）
+├─ ../local-data/source/    # 私有上传源文件
+├─ ../local-data/build/     # 与目标无关的临时 Artifact
 ├─ tests/                   # 单元测试和 PostgreSQL 集成测试
 ├─ .env.example
 ├─ alembic.ini

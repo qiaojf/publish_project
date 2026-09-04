@@ -4,7 +4,7 @@ from app.db.models.content import Content
 from app.db.models.operation_log import OperationLog
 from app.db.models.publish_record import PublishRecord
 from app.db.models.review_record import ReviewRecord
-from app.schemas.content import ContentRead
+from app.schemas.content import ContentFileRead, ContentRead
 from app.schemas.publish_record import OperationLogRead, PublishRecordRead
 from app.schemas.review import ReviewRecordRead
 
@@ -25,6 +25,11 @@ def content_to_read(content: Content, *, include_body: bool = False) -> ContentR
         default=None,
     )
     latest_publish = max(content.publish_records, key=lambda item: item.created_at, default=None)
+    raw_files = content.source_files or []
+    if not raw_files and content.source_file_name:
+        raw_files = [{"name": content.source_file_name, "relative_path": content.source_file_name, "size": _safe_size(content.source_file_path)}]
+    files = [ContentFileRead.model_validate(item) for item in raw_files]
+    total_size = sum(item.size or 0 for item in files) or _safe_size(content.source_file_path)
     return ContentRead(
         id=content.id,
         title=content.title,
@@ -32,7 +37,9 @@ def content_to_read(content: Content, *, include_body: bool = False) -> ContentR
         category=content.category,
         content_type=content.content_type,
         file_name=content.source_file_name,
-        file_size=_safe_size(content.source_file_path),
+        file_size=total_size,
+        files=files,
+        source_is_directory=content.source_is_directory,
         content_body=content.content_body if include_body else None,
         created_by=content.created_by,
         creator_name=content.creator.name,

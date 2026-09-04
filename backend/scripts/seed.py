@@ -15,11 +15,6 @@ from app.db.models.user import User  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
 
 
-USERS = (
-    {"username": "admin", "password": "admin123", "name": "系统管理员", "role": "admin"},
-    {"username": "employee", "password": "employee123", "name": "普通员工", "role": "employee"},
-)
-
 TARGETS = (
     ("HTML 发布区", ["html", "dynamic"], "html"),
     ("PPT 发布区", ["ppt"], "ppt"),
@@ -32,8 +27,12 @@ TARGETS = (
 
 def seed() -> None:
     settings = get_settings()
+    users = (
+        {"username": "admin", "password": settings.seed_admin_password, "name": "系统管理员", "role": "admin"},
+        {"username": "employee", "password": settings.seed_employee_password, "name": "普通员工", "role": "employee"},
+    )
     with SessionLocal() as db:
-        for values in USERS:
+        for values in users:
             existing = db.scalar(select(User).where(User.username == values["username"]))
             if not existing:
                 db.add(User(
@@ -50,8 +49,9 @@ def seed() -> None:
                 publish_root = (settings.local_published_root / folder).resolve()
                 publish_root.mkdir(parents=True, exist_ok=True)
                 db.add(PublishTarget(
-                    name=name, content_types=content_types, publish_root=str(publish_root),
-                    base_url=f"http://localhost:8000/local-published/{folder}/", enabled=True, created_by=admin.id,
+                    name=name, target_type="local", config={}, content_types=content_types, publish_root=str(publish_root),
+                    base_url=f"{settings.local_published_base_url.rstrip('/')}/{folder}/",
+                    enabled=True, created_by=admin.id,
                 ))
         db.commit()
     print("Seed completed: admin, employee and development publish targets are ready.")

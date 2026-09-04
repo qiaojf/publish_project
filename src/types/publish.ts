@@ -1,10 +1,15 @@
 import type { ContentType } from './content'
 import type { PageParams } from './api'
 
+export type PublishTargetType = 'local' | 'sftp' | 'github' | 'github_pages' | 'onedrive' | 'dropbox'
+
 export interface PublishTarget {
   id: number
   name: string
   content_types: ContentType[]
+  target_type: PublishTargetType
+  config?: Record<string, string | number | boolean>
+  credential_ref?: string | null
   publish_root?: string
   base_url?: string
   created_by?: number
@@ -16,8 +21,11 @@ export interface PublishTarget {
 export interface PublishTargetPayload {
   name: string
   content_types: ContentType[]
-  publish_root: string
-  base_url: string
+  target_type: PublishTargetType
+  config: Record<string, string | number | boolean>
+  credential_ref?: string
+  publish_root?: string
+  base_url?: string
   enabled: boolean
 }
 

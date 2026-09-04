@@ -38,3 +38,27 @@ class InvalidFileError(AppError):
 class PublishError(AppError):
     def __init__(self, message: str) -> None:
         super().__init__(message, 500)
+
+
+class PublishTargetConfigurationError(PublishError):
+    pass
+
+
+class PublishTargetConnectionError(PublishError):
+    pass
+
+
+class PublishAuthenticationError(PublishError):
+    pass
+
+
+class PublishPermissionError(PublishError):
+    pass
+
+
+class PublishUploadError(PublishError):
+    pass
+
+
+class PublishTimeoutError(PublishError):
+    pass

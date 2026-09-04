@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Identity, Index, String
+from sqlalchemy import BigInteger, Boolean, CheckConstraint, ForeignKey, Identity, Index, String, text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -15,13 +15,26 @@ if TYPE_CHECKING:
 
 class PublishTarget(TimestampMixin, Base):
     __tablename__ = "publish_targets"
-    __table_args__ = (Index("ix_publish_targets_enabled", "enabled"), Index("ix_publish_targets_created_by", "created_by"))
+    __table_args__ = (
+        CheckConstraint(
+            "target_type IN ('local','sftp','github','github_pages','onedrive','dropbox')",
+            name="target_type_allowed",
+        ),
+        Index("ix_publish_targets_enabled", "enabled"),
+        Index("ix_publish_targets_created_by", "created_by"),
+        Index("ix_publish_targets_target_type", "target_type"),
+    )
 
     id: Mapped[int] = mapped_column(BigInteger, Identity(), primary_key=True)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     content_types: Mapped[list[str]] = mapped_column(JSONB, nullable=False)
-    publish_root: Mapped[str] = mapped_column(String(1000), nullable=False)
-    base_url: Mapped[str] = mapped_column(String(1000), nullable=False)
+    target_type: Mapped[str] = mapped_column(String(50), default="local", server_default="local", nullable=False)
+    config: Mapped[dict[str, object]] = mapped_column(
+        JSONB, default=dict, server_default=text("'{}'::jsonb"), nullable=False,
+    )
+    credential_ref: Mapped[str | None] = mapped_column(String(255))
+    publish_root: Mapped[str | None] = mapped_column(String(1000))
+    base_url: Mapped[str | None] = mapped_column(String(1000))
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default="true", nullable=False)
     created_by: Mapped[int] = mapped_column(BigInteger, ForeignKey("users.id", ondelete="RESTRICT"), nullable=False)
 

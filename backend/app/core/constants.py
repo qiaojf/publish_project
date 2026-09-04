@@ -48,6 +48,15 @@ class PublishRecordStatus(StrEnum):
     FAILED = "failed"
 
 
+class PublishTargetType(StrEnum):
+    LOCAL = "local"
+    SFTP = "sftp"
+    GITHUB = "github"
+    GITHUB_PAGES = "github_pages"
+    ONEDRIVE = "onedrive"
+    DROPBOX = "dropbox"
+
+
 ALLOWED_EXTENSIONS: dict[ContentType, set[str]] = {
     ContentType.HTML: {".html", ".htm"},
     ContentType.DYNAMIC: {".html", ".htm", ".zip"},
