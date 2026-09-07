@@ -586,6 +586,22 @@ curl -I https://registry.npmjs.org/
 
 公司网络使用代理或内网镜像时，应按公司规范设置 `HTTPS_PROXY`、npm registry、pip index 和 Micromamba 镜像。不要关闭 TLS 校验。
 
+### 前端构建提示 `/usr/bin/env: 'node': No such file or directory`
+
+这表示 npm 已安装，但运行 npm 时的 `PATH` 没有包含用户级 Node.js。新版脚本会自动把 `$INSTALL_ROOT/runtime/bin` 放在 `PATH` 最前面，并在构建前验证 `node` 和 npm 版本。上传新版脚本后直接重复原来的 `install` 命令即可；之前已创建的数据库和配置会被保留。
+
+临时验证命令：
+
+```bash
+ROOT="$HOME/.local/share/content-publish"
+export PATH="$ROOT/runtime/bin:$PATH"
+command -v node
+node --version
+"$ROOT/runtime/bin/npm" --version
+```
+
+`command -v node` 应输出 `$HOME/.local/share/content-publish/runtime/bin/node`。安装失败日志中的 PostgreSQL `received fast shutdown request` 是脚本在失败后进行的正常清理，不代表数据库损坏。
+
 ### `Address already in use`
 
 查看端口占用，并换用未占用的高端口重新部署：
@@ -640,6 +656,27 @@ tail -n 200 "$HOME/.local/share/content-publish/logs/postgresql-bootstrap.log"
 ```
 
 常见原因包括端口冲突、HOME 磁盘不足、文件权限被修改、异常关机后的数据库恢复尚未完成。不要手工删除 `postmaster.pid`，除非已经确认没有任何 PostgreSQL 进程在使用该数据目录。
+
+### 分类配置、内容检索、审核管理和内容管理同时报错
+
+这些页面都会读取 `/api/categories`。先上传包含最新 Alembic 迁移的完整项目并重复执行 `install`；脚本会执行幂等的分类表修复迁移，并在启动前检查分类表结构：
+
+```bash
+cd "$HOME/publish_project"
+PUBLIC_URL="之前部署时使用的地址" \
+  bash scripts/deploy-el9-nonroot.sh install
+```
+
+不要为这次修复设置 `FORCE_CONFIG=1`。完成后检查：
+
+```bash
+ROOT="$HOME/.local/share/content-publish"
+cd "$ROOT/app/backend"
+"$ROOT/runtime/bin/python" -m alembic current
+curl -fsS "http://127.0.0.1:18080/api/health"
+```
+
+迁移版本应为 `20260907_0004 (head)`，健康检查应返回 `status: ok`。如果迁移失败，查看终端中的 Alembic 原始错误以及 `$ROOT/logs/backend.log`，不要手工修改 `alembic_version`。
 
 ## 17. 官方参考
 

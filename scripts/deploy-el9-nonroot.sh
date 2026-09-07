@@ -52,6 +52,7 @@ load_runtime() {
   PYTHON="$RUNTIME_ROOT/bin/python"
   SUPERVISORD="$RUNTIME_ROOT/bin/supervisord"
   SUPERVISORCTL="$RUNTIME_ROOT/bin/supervisorctl"
+  export PATH="$RUNTIME_ROOT/bin:${PATH:-/usr/local/bin:/usr/bin:/bin}"
   [[ -x $PYTHON && -x $SUPERVISORD && -x $SUPERVISORCTL ]] || die "运行环境不完整，请重新执行 install。"
 }
 
@@ -340,6 +341,11 @@ fi
 PYTHON="$RUNTIME_ROOT/bin/python"
 NPM="$RUNTIME_ROOT/bin/npm"
 RSYNC="$RUNTIME_ROOT/bin/rsync"
+export PATH="$RUNTIME_ROOT/bin:${PATH:-/usr/local/bin:/usr/bin:/bin}"
+hash -r
+[[ $(command -v node) == "$RUNTIME_ROOT/bin/node" ]] || die "用户级 Node.js 未进入 PATH：$RUNTIME_ROOT/bin/node"
+"$RUNTIME_ROOT/bin/node" --version
+"$NPM" --version
 
 "$PYTHON" - "$PUBLIC_URL" <<'PY'
 import sys
@@ -506,6 +512,15 @@ echo "[6/10] 执行数据库迁移和初始化数据..."
 (
   cd "$BACKEND_ROOT"
   "$PYTHON" -m alembic upgrade head
+  "$PYTHON" - <<'PY'
+from sqlalchemy import text
+
+from app.db.session import engine
+
+with engine.connect() as connection:
+    connection.execute(text("SELECT id, name, enabled, sort_order, created_at, updated_at FROM categories LIMIT 1"))
+print("Database schema check passed: categories")
+PY
   SEED_ADMIN_PASSWORD="$INITIAL_ADMIN_PASSWORD" SEED_EMPLOYEE_PASSWORD="$INITIAL_EMPLOYEE_PASSWORD" "$PYTHON" scripts/seed.py
 )
 
@@ -576,6 +591,7 @@ pidfile=${RUN_ROOT}/supervisord.pid
 childlogdir=${LOG_ROOT}
 nodaemon=false
 minfds=1024
+environment=PATH="${RUNTIME_ROOT}/bin:/usr/local/bin:/usr/bin:/bin"
 
 [rpcinterface:supervisor]
 supervisor.rpcinterface_factory=supervisor.rpcinterface:make_main_rpcinterface
