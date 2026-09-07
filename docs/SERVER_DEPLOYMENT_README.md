@@ -141,7 +141,7 @@ sudo env \
 | `DB_PASSWORD` | 首次随机生成 | 数据库密码；也可以主动指定 |
 | `INITIAL_ADMIN_PASSWORD` | 首次随机生成 | 初始管理员密码 |
 | `INITIAL_EMPLOYEE_PASSWORD` | 首次随机生成 | 初始员工密码 |
-| `MAX_UPLOAD_SIZE_MB` | `100` | 后端上传总大小限制 |
+| `MAX_UPLOAD_SIZE_MB` | `1024` | 后端上传总大小限制；如服务器磁盘较小可调低 |
 | `UVICORN_WORKERS` | `2` | FastAPI worker 数量 |
 | `RUN_TESTS` | `0` | 设为 `1` 时创建测试库并运行 pytest |
 | `FORCE_CONFIG` | `0` | 设为 `1` 时重新生成 `backend/.env`，谨慎使用 |
@@ -291,9 +291,9 @@ PREVIEW_STORAGE_ROOT=/srv/content-publish/preview
 BUILD_STORAGE_ROOT=/srv/content-publish/build
 LOCAL_PUBLISHED_ROOT=/srv/content-publish/published
 LOCAL_PUBLISHED_BASE_URL=https://publish.example.com/published
-MAX_UPLOAD_SIZE_MB=100
+MAX_UPLOAD_SIZE_MB=1024
 PUBLISH_CONNECTION_TIMEOUT_SECONDS=30
-PUBLISH_OPERATION_TIMEOUT_SECONDS=300
+PUBLISH_OPERATION_TIMEOUT_SECONDS=600
 CORS_ORIGINS=https://publish.example.com
 DB_CONNECT_TIMEOUT_SECONDS=5
 DB_POOL_SIZE=10
@@ -585,6 +585,8 @@ sudo restorecon -RF /srv/content-publish/published
 - Token 需要仓库内容读写权限。
 - `credential_ref=publish_test` 对应 `PUBLISH_CREDENTIAL_PUBLISH_TEST_TOKEN`。
 - 修改 `.env` 后重启服务。
+- GitHub Pages 官方不支持 Git LFS。单个文件超过 100 MiB 时请改用 GitHub Repository、公司服务器、SFTP、OneDrive 或 Dropbox；普通 GitHub Repository 目标会自动使用 Git LFS。
+- Pages 构建最长可能持续数分钟；前端会进入详情页自动刷新状态，不要因浏览器短超时重复点击发布。
 
 Nginx 日志：
 

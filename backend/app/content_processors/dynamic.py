@@ -9,7 +9,7 @@ from app.utils.paths import safe_child
 
 class DynamicContentProcessor(BaseContentProcessor):
     def process(self, content: Content) -> PublishArtifact:
-        if not content.content_body:
+        if not content.content_body or content.content_body.strip().lower() == "null":
             raise PublishError("动态页面内容不能为空")
         output = self.prepare_output(content)
         page = content.content_body

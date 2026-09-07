@@ -1,3 +1,6 @@
+import base64
+import hashlib
+import json
 from pathlib import Path
 
 import httpx
@@ -66,6 +69,52 @@ def test_github_target_commits_artifact_once(tmp_path: Path, monkeypatch: pytest
     assert result.external_id == "new-commit"
     assert result.publish_url == "https://github.com/company/content/tree/main/published/31-demo"
     assert result.remote_path == "company/content:main/published/31-demo"
+
+
+def test_github_target_uses_lfs_for_oversized_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PUBLISH_CREDENTIAL_GITHUB_COMPANY_TOKEN", "lfs-token")
+    monkeypatch.setattr(GitHubTargetPublisher, "regular_blob_limit_bytes", 3)
+    uploaded = bytearray()
+    blobs: list[bytes] = []
+    content = b"demo"
+    oid = hashlib.sha256(content).hexdigest()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if request.method == "POST" and path.endswith("/info/lfs/objects/batch"):
+            payload = json.loads(request.content)
+            assert payload["objects"] == [{"oid": oid, "size": len(content)}]
+            return httpx.Response(200, json={"objects": [{"oid": oid, "size": len(content), "actions": {
+                "upload": {"href": "https://uploads.github.test/lfs/object"},
+                "verify": {"href": "https://uploads.github.test/lfs/verify"},
+            }}]})
+        if request.method == "PUT" and path == "/lfs/object":
+            uploaded.extend(request.read())
+            return httpx.Response(200)
+        if request.method == "POST" and path == "/lfs/verify":
+            return httpx.Response(200)
+        if request.method == "GET" and "/git/ref/heads/" in path:
+            return httpx.Response(200, json={"object": {"sha": "head"}})
+        if request.method == "GET" and path.endswith("/git/commits/head"):
+            return httpx.Response(200, json={"tree": {"sha": "base-tree"}})
+        if request.method == "GET" and path.endswith("/git/trees/base-tree"):
+            return httpx.Response(200, json={"tree": []})
+        if request.method == "POST" and path.endswith("/git/blobs"):
+            blobs.append(base64.b64decode(json.loads(request.content)["content"]))
+            return httpx.Response(201, json={"sha": f"blob-{len(blobs)}"})
+        if request.method == "POST" and path.endswith("/git/trees"):
+            return httpx.Response(201, json={"sha": "new-tree"})
+        if request.method == "POST" and path.endswith("/git/commits"):
+            return httpx.Response(201, json={"sha": "new-commit"})
+        if request.method == "PATCH" and "/git/refs/heads/" in path:
+            return httpx.Response(200, json={"object": {"sha": "new-commit"}})
+        return httpx.Response(404)
+
+    result = GitHubTargetPublisher(httpx.MockTransport(handler)).publish(make_artifact(tmp_path), make_target())
+    assert result.external_id == "new-commit"
+    assert bytes(uploaded) == content
+    assert any(f"oid sha256:{oid}".encode() in blob for blob in blobs)
+    assert any(b"filter=lfs" in blob for blob in blobs)
 
 
 def test_github_connection_retries_500(monkeypatch: pytest.MonkeyPatch) -> None:

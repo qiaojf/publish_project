@@ -30,13 +30,13 @@ class Settings(BaseSettings):
     build_storage_root: Path = Path("../local-data/build")
     local_published_root: Path = Path("../local-data/published")
     local_published_base_url: str = "http://localhost:8000/local-published"
-    max_upload_size_mb: int = Field(default=100, gt=0, le=1024)
+    max_upload_size_mb: int = Field(default=1024, gt=0, le=1024)
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     db_connect_timeout_seconds: int = Field(default=5, gt=0, le=60)
     db_pool_size: int = Field(default=10, gt=0)
     db_max_overflow: int = Field(default=20, ge=0)
     publish_connection_timeout_seconds: int = Field(default=30, gt=0, le=300)
-    publish_operation_timeout_seconds: int = Field(default=300, gt=0, le=3600)
+    publish_operation_timeout_seconds: int = Field(default=600, gt=0, le=3600)
     seed_admin_password: str = "admin123"
     seed_employee_password: str = "employee123"
 

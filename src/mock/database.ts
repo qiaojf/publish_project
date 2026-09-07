@@ -1,4 +1,5 @@
 import type { ContentItem, ContentPayload, ContentQuery, ContentType, PublishStatus } from '@/types/content'
+import type { Category, CategoryPayload } from '@/types/category'
 import type { DashboardData } from '@/types/dashboard'
 import type { PageResult } from '@/types/api'
 import type { OperationLog, OperationLogQuery, PublishLog, PublishLogQuery, PublishTarget, PublishTargetPayload } from '@/types/publish'
@@ -8,6 +9,7 @@ import type { CurrentUser, User, UserPayload, UserQuery, UserStatus } from '@/ty
 interface StoredUser extends User { password: string }
 interface Database {
   users: StoredUser[]
+  categories: Category[]
   contents: ContentItem[]
   targets: PublishTarget[]
   reviews: ReviewRecord[]
@@ -29,6 +31,14 @@ function initialDatabase(): Database {
       { id: 3, username: 'wangqi', password: 'demo123', name: '王启', role: 'employee', status: 'active', created_at: ago(24 * 42), updated_at: ago(24 * 42) },
       { id: 4, username: 'chenmo', password: 'demo123', name: '陈默', role: 'employee', status: 'disabled', created_at: ago(24 * 30), updated_at: ago(24 * 30) }
     ],
+    categories: ['制度规范', '产品资料', '销售方案', '培训材料', '品牌素材', '公共资源'].map((name, index) => ({
+      id: index + 1,
+      name,
+      enabled: true,
+      sort_order: (index + 1) * 10,
+      created_at: ago(24 * 120),
+      updated_at: ago(24 * 120)
+    })),
     targets: [
       { id: 1, name: '内部页面', target_type: 'local', content_types: ['html', 'dynamic'], config: {}, publish_root: '/data/company/site/', base_url: 'https://internal.example.com/site/', enabled: true, created_at: ago(24 * 90) },
       { id: 2, name: 'PPT 发布区', target_type: 'local', content_types: ['ppt'], config: {}, publish_root: '/data/company/presentation/', base_url: 'https://internal.example.com/presentation/', enabled: true, created_at: ago(24 * 80) },
@@ -73,7 +83,14 @@ function load(): Database {
     save(db)
     return db
   }
-  try { return JSON.parse(saved) as Database } catch { return initialDatabase() }
+  try {
+    const db = JSON.parse(saved) as Database
+    if (!Array.isArray(db.categories)) {
+      db.categories = initialDatabase().categories
+      save(db)
+    }
+    return db
+  } catch { return initialDatabase() }
 }
 
 function save(db: Database) { localStorage.setItem(DB_KEY, JSON.stringify(db)) }
@@ -109,12 +126,18 @@ function findContent(db: Database, id: number): ContentItem {
 }
 function targetName(db: Database, id?: number) { return db.targets.find((item) => item.id === id)?.name }
 function readableOperationObject(db: Database, object: string) {
-  const match = /^(用户|内容|发布目标) #(\d+)$/.exec(object)
+  const match = /^(用户|内容|发布目标|分类) #(\d+)$/.exec(object)
   if (!match) return object
   const id = Number(match[2])
   if (match[1] === '用户') return db.users.find((item) => item.id === id)?.username || object
   if (match[1] === '内容') return db.contents.find((item) => item.id === id)?.title || object
+  if (match[1] === '分类') return db.categories.find((item) => item.id === id)?.name || object
   return db.targets.find((item) => item.id === id)?.name || object
+}
+function requireEnabledCategory(db: Database, name: string) {
+  const category = db.categories.find((item) => item.name.toLowerCase() === name.trim().toLowerCase())
+  if (!category) throw new Error('所选分类不存在，请刷新分类列表')
+  if (!category.enabled) throw new Error('所选分类已禁用，请重新选择')
 }
 function mockDocumentContent(item: ContentItem) {
   if (item.content_type === 'ppt') return `<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0;padding:28px;background:#f4f5f1;font-family:Arial,"Microsoft YaHei",sans-serif;color:#222}.slide{position:relative;min-height:260px;margin:0 auto 24px;padding:48px;background:#fff;border:1px solid #ddd;box-shadow:0 8px 24px #2221}.slide h1{font-size:30px}.slide h2{color:#648f0e}.slide i{position:absolute;right:18px;bottom:14px;color:#81b119;font-style:normal}</style></head><body><section class="slide"><h1>本季度关键进展</h1><p>核心交付已按计划完成，下一阶段进入区域推广。</p><i>01</i></section><section class="slide"><h2>下一步行动</h2><ul><li>完成重点客户验证</li><li>同步交付材料与培训计划</li><li>按周复盘发布数据</li></ul><i>02</i></section></body></html>`
@@ -194,6 +217,7 @@ export const mockDb = {
   async getContent(id: number) { await wait(); return { ...findContent(load(), id) } },
   async createContent(payload: ContentPayload) {
     await wait(360); const db = load(); const user = activeUser(db)
+    requireEnabledCategory(db, payload.category)
     const selected = payload.files || []
     const item: ContentItem = { id: nextId(db.contents), title: payload.title, description: payload.description, category: payload.category, content_type: payload.content_type, content_body: payload.content_body, file_name: selected.length === 1 ? selected[0].file.name : payload.file_name, file_size: selected.reduce((total, entry) => total + entry.file.size, 0) || payload.file_size, files: selected.map((entry) => ({ name: entry.file.name, relative_path: entry.relative_path, size: entry.file.size })), source_is_directory: selected.length > 1 || selected.some((entry) => entry.relative_path.includes('/')), created_by: user.id, creator_name: user.name, created_at: now(), updated_at: now(), review_status: 'draft', publish_status: 'unpublished', publish_target_id: payload.publish_target_id, publish_target_name: targetName(db, payload.publish_target_id) }
     db.contents.unshift(item); recordOperation(db, '新建内容', `内容 #${item.id}`, `新建《${item.title}》`); save(db); return item
@@ -201,6 +225,7 @@ export const mockDb = {
   async updateContent(id: number, payload: ContentPayload) {
     await wait(320); const db = load(); const item = findContent(db, id); const user = activeUser(db)
     if (user.role !== 'admin' && (item.created_by !== user.id || item.review_status === 'pending')) throw new Error('当前状态不允许编辑')
+    requireEnabledCategory(db, payload.category)
     const selected = payload.files || []
     Object.assign(item, { title: payload.title, description: payload.description, category: payload.category, content_type: payload.content_type, content_body: payload.content_body, file_name: selected.length === 1 ? selected[0].file.name : payload.file_name || item.file_name, file_size: selected.length ? selected.reduce((total, entry) => total + entry.file.size, 0) : payload.file_size || item.file_size, files: selected.length ? selected.map((entry) => ({ name: entry.file.name, relative_path: entry.relative_path, size: entry.file.size })) : item.files, source_is_directory: selected.length ? selected.length > 1 || selected.some((entry) => entry.relative_path.includes('/')) : item.source_is_directory, publish_target_id: payload.publish_target_id, publish_target_name: targetName(db, payload.publish_target_id), updated_at: now() })
     recordOperation(db, '编辑内容', `内容 #${id}`, `更新《${item.title}》`); save(db); return item
@@ -221,6 +246,36 @@ export const mockDb = {
   },
   async publishContent(id: number) { await wait(500); const db = load(); requireAdmin(db); const item = findContent(db, id); return publish(db, item, '管理员直接发布') },
   async republishContent(id: number) { await wait(520); const db = load(); requireAdmin(db); const item = findContent(db, id); if (item.publish_status !== 'failed') throw new Error('仅发布失败的内容可重新发布'); return publish(db, item, '重新发布') },
+
+  async getCategories(includeDisabled = false): Promise<Category[]> {
+    await wait(); const db = load(); const user = activeUser(db)
+    return db.categories.filter((item) => user.role === 'admin' && includeDisabled ? true : item.enabled).sort((a, b) => a.sort_order - b.sort_order || a.id - b.id).map((item) => ({ ...item }))
+  },
+  async createCategory(payload: CategoryPayload): Promise<Category> {
+    await wait(); const db = load(); requireAdmin(db)
+    if (db.categories.some((item) => item.name.toLowerCase() === payload.name.trim().toLowerCase())) throw new Error('分类名称已存在')
+    const item: Category = { ...payload, name: payload.name.trim(), id: nextId(db.categories), created_at: now(), updated_at: now() }
+    db.categories.push(item); recordOperation(db, '新增分类', `分类 #${item.id}`, `新增分类 ${item.name}`); save(db); return { ...item }
+  },
+  async updateCategory(id: number, payload: CategoryPayload): Promise<Category> {
+    await wait(); const db = load(); requireAdmin(db); const item = db.categories.find((category) => category.id === id)
+    if (!item) throw new Error('分类不存在')
+    const name = payload.name.trim()
+    if (db.categories.some((category) => category.id !== id && category.name.toLowerCase() === name.toLowerCase())) throw new Error('分类名称已存在')
+    if (item.name !== name) db.contents.forEach((content) => { if (content.category === item.name) content.category = name })
+    Object.assign(item, payload, { name, updated_at: now() }); recordOperation(db, '编辑分类', `分类 #${id}`, `更新分类 ${item.name}`); save(db); return { ...item }
+  },
+  async updateCategoryStatus(id: number, enabled: boolean): Promise<Category> {
+    await wait(); const db = load(); requireAdmin(db); const item = db.categories.find((category) => category.id === id)
+    if (!item) throw new Error('分类不存在')
+    item.enabled = enabled; item.updated_at = now(); recordOperation(db, enabled ? '启用分类' : '禁用分类', `分类 #${id}`, `${enabled ? '启用' : '禁用'}分类 ${item.name}`); save(db); return { ...item }
+  },
+  async deleteCategory(id: number) {
+    await wait(); const db = load(); requireAdmin(db); const item = db.categories.find((category) => category.id === id)
+    if (!item) throw new Error('分类不存在')
+    if (db.contents.some((content) => content.category === item.name)) throw new Error('该分类已被内容使用，请改为禁用')
+    db.categories = db.categories.filter((category) => category.id !== id); recordOperation(db, '删除分类', item.name, `删除分类 ${item.name}`); save(db); return true
+  },
 
   async getTargets(): Promise<PublishTarget[]> {
     await wait(); const db = load(); const user = activeUser(db)

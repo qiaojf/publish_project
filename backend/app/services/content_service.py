@@ -19,6 +19,7 @@ from app.repositories.publish_target_repository import PublishTargetRepository
 from app.repositories.review_repository import ReviewRepository
 from app.schemas.common import PageResult
 from app.schemas.content import ContentPayload, ContentPreview, ContentPreviewFile, ContentRead
+from app.services.category_service import CategoryService
 from app.services.publish_target_service import PublishTargetService
 from app.services.serializers import content_to_read
 from app.utils.files import remove_source, save_uploads, validate_relative_upload_path
@@ -26,6 +27,10 @@ from app.utils.document_preview import build_document_preview
 
 
 class ContentService:
+    @staticmethod
+    def _content_body(value: str | None) -> str | None:
+        return None if not value or value.strip().lower() == "null" else value
+
     @staticmethod
     def _preview_source(content: Content) -> Path | None:
         if not content.source_file_path:
@@ -58,7 +63,7 @@ class ContentService:
 
     @staticmethod
     def _html_preview(content: Content, source: Path | None) -> str | None:
-        body = content.content_body
+        body = ContentService._content_body(content.content_body)
         if not body and source and source.suffix.lower() in {".html", ".htm"}:
             try:
                 body = source.read_text(encoding="utf-8-sig", errors="replace")
@@ -107,6 +112,7 @@ class ContentService:
         db: Session, payload: ContentPayload, uploads: list[UploadFile], relative_paths: list[str],
         existing: Content | None = None,
     ) -> None:
+        CategoryService.require_enabled(db, payload.category)
         target = PublishTargetRepository.get_by_id(db, payload.publish_target_id) if payload.publish_target_id else None
         PublishTargetService.validate_for_content(target, payload.content_type.value)
         has_existing_file = bool(existing and existing.source_file_path)
@@ -127,9 +133,10 @@ class ContentService:
                     str(item.get("relative_path") or item.get("name") or ""), payload.content_type,
                     enforce_extension=not existing.source_is_directory,
                 )
-        if not uploads and not has_existing_file and not payload.content_body:
+        content_body = ContentService._content_body(payload.content_body)
+        if not uploads and not has_existing_file and not content_body:
             raise InvalidFileError("请上传内容文件或填写页面内容")
-        if payload.content_type == ContentType.DYNAMIC and not payload.content_body:
+        if payload.content_type == ContentType.DYNAMIC and not content_body:
             raise InvalidFileError("动态页面必须填写内容数据")
 
     @classmethod
@@ -142,7 +149,7 @@ class ContentService:
         try:
             content = ContentRepository.create(
                 db, title=payload.title, description=payload.description, category=payload.category,
-                content_type=payload.content_type.value, content_body=payload.content_body,
+                content_type=payload.content_type.value, content_body=cls._content_body(payload.content_body),
                 publish_target_id=payload.publish_target_id, created_by=current_user.id,
             )
             if uploads:
@@ -181,7 +188,7 @@ class ContentService:
             content.category = payload.category
             content.content_type = payload.content_type.value
             content.publish_target_id = payload.publish_target_id
-            content.content_body = payload.content_body
+            content.content_body = cls._content_body(payload.content_body)
             content.updated_at = utc_now()
             if uploads:
                 stored = await save_uploads(uploads, relative_paths, content.id, payload.content_type)

@@ -12,8 +12,9 @@ class HtmlPublisher(BasePublisher):
     def publish(self, content: Content, target: PublishTarget) -> PublishResult:
         relative_path, output_dir, view_url = self.prepare_output(content, target)
         index_file = safe_child(output_dir, "index.html")
-        if content.content_body:
-            index_file.write_text(content.content_body, encoding="utf-8")
+        body = content.content_body if content.content_body and content.content_body.strip().lower() != "null" else None
+        if body:
+            index_file.write_text(body, encoding="utf-8")
         elif content.source_file_path and Path(content.source_file_path).is_file():
             shutil.copy2(content.source_file_path, index_file)
         else:

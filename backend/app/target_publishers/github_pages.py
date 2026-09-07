@@ -22,6 +22,13 @@ class GitHubPagesTargetPublisher(GitHubTargetPublisher):
             raise PublishTargetConfigurationError("动态页面依赖后端运行，不能发布到 GitHub Pages")
         if not artifact.entry_file:
             raise PublishTargetConfigurationError("GitHub Pages Artifact 缺少 Web 入口文件")
+        oversized = next(((relative, local_file.stat().st_size) for local_file, relative in self.artifact_files(artifact) if local_file.stat().st_size > self.regular_blob_limit_bytes), None)
+        if oversized:
+            relative, size = oversized
+            raise PublishTargetConfigurationError(
+                f"文件 {relative} 大小为 {size / 1024 / 1024:.1f} MiB，超过 GitHub 普通 Git 文件 100 MiB 限制；"
+                "GitHub Pages 官方不支持 Git LFS，请改用公司服务器、SFTP、OneDrive 或 Dropbox 目标"
+            )
 
     def _publish_url(self, config: dict[str, object], prefix: str) -> str:
         encoded_path = quote(prefix.strip("/"), safe="/")

@@ -4,6 +4,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.exceptions import ResourceNotFound
+from app.db.models.category import Category
 from app.db.models.content import Content
 from app.db.models.operation_log import OperationLog
 from app.db.models.publish_target import PublishTarget
@@ -20,6 +21,7 @@ class LogService:
     def _operation_targets(db: Session, items: list[OperationLog]) -> dict[tuple[str, int], str]:
         labels: dict[tuple[str, int], str] = {}
         model_fields = {
+            "category": (Category, Category.name),
             "user": (User, User.username),
             "content": (Content, Content.title),
             "publish_target": (PublishTarget, PublishTarget.name),

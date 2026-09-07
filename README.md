@@ -17,6 +17,14 @@
 
 ## 安装与启动
 
+首先启动数据库服务：
+
+```powershell
+.\local-data\postgres\pgsql\bin\pg_ctl.exe start `
+  -D ".\local-data\postgres-data" `
+  -l ".\local-data\postgres\pgsql\postgres.log"
+```
+
 完整本地环境可从项目根目录一键启动：
 
 ```powershell
@@ -138,3 +146,7 @@ src/
 7. 对预置发布失败内容执行重新发布，无需重复审核。
 8. 员工仅能检索并打开已发布内容。
 9. 管理员查看操作日志和发布日志。
+
+
+
+

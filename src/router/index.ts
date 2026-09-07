@@ -19,6 +19,7 @@ const routes: RouteRecordRaw[] = [
       { path: 'reviews', name: 'reviews', component: () => import('@/pages/ReviewListPage.vue'), meta: { title: '审核管理', adminOnly: true } },
       { path: 'reviews/:contentId', name: 'review-detail', component: () => import('@/pages/ReviewDetailPage.vue'), meta: { title: '审核详情', adminOnly: true } },
       { path: 'users', name: 'users', component: () => import('@/pages/UserPage.vue'), meta: { title: '用户管理', adminOnly: true } },
+      { path: 'settings/categories', name: 'categories', component: () => import('@/pages/CategoryPage.vue'), meta: { title: '分类配置', adminOnly: true } },
       { path: 'settings/publish-targets', name: 'publish-targets', component: () => import('@/pages/PublishTargetPage.vue'), meta: { title: '发布配置', adminOnly: true } },
       { path: 'logs', name: 'logs', component: () => import('@/pages/LogPage.vue'), meta: { title: '系统日志', adminOnly: true } }
     ]

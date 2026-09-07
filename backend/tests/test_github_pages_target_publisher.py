@@ -24,6 +24,13 @@ def test_github_pages_rejects_dynamic_content(tmp_path: Path, monkeypatch: pytes
         GitHubPagesTargetPublisher(make_transport()).publish(artifact, make_target("github_pages"))
 
 
+def test_github_pages_rejects_file_that_would_require_lfs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PUBLISH_CREDENTIAL_GITHUB_COMPANY_TOKEN", "token")
+    monkeypatch.setattr(GitHubPagesTargetPublisher, "regular_blob_limit_bytes", 3)
+    with pytest.raises(PublishTargetConfigurationError, match="GitHub Pages 官方不支持 Git LFS"):
+        GitHubPagesTargetPublisher(make_transport()).publish(make_artifact(tmp_path), make_target("github_pages"))
+
+
 def test_github_pages_rejects_branch_different_from_pages_source(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

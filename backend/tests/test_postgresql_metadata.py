@@ -5,9 +5,9 @@ from app.db.base import Base
 from app.db import models  # noqa: F401
 
 
-def test_metadata_contains_exactly_six_postgresql_tables() -> None:
+def test_metadata_contains_exactly_seven_postgresql_tables() -> None:
     assert set(Base.metadata.tables) == {
-        "users", "contents", "publish_targets", "review_records", "publish_records", "operation_logs",
+        "users", "categories", "contents", "publish_targets", "review_records", "publish_records", "operation_logs",
     }
 
 

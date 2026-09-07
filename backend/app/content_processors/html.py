@@ -11,8 +11,9 @@ from app.utils.paths import safe_child
 class HtmlContentProcessor(BaseContentProcessor):
     def process(self, content: Content) -> PublishArtifact:
         output = self.prepare_output(content)
-        if content.content_body:
-            safe_child(output, "index.html").write_text(content.content_body, encoding="utf-8")
+        body = content.content_body if content.content_body and content.content_body.strip().lower() != "null" else None
+        if body:
+            safe_child(output, "index.html").write_text(body, encoding="utf-8")
         else:
             sources = self.source_files(content)
             if not sources:

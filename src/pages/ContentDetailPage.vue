@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { ArrowLeft, Edit, Link, Promotion, RefreshRight } from '@element-plus/icons-vue'
@@ -14,17 +14,34 @@ import { formatDate, formatFileSize } from '@/utils/format'
 import type { ContentItem, PreviewData } from '@/types/content'
 
 const route = useRoute(); const router = useRouter(); const auth = useAuthStore(); const id = Number(route.params.id); const loading = ref(true); const previewLoading = ref(true); const content = ref<ContentItem>(); const preview = ref<PreviewData>()
+let publishPoll: ReturnType<typeof setTimeout> | undefined
 const canEdit = computed(() => content.value && (auth.isAdmin || (content.value.created_by === auth.user?.id && content.value.review_status !== 'pending' && content.value.publish_status !== 'published')))
 const canSubmit = computed(() => !auth.isAdmin && content.value && ['draft', 'rejected'].includes(content.value.review_status))
-async function load() { loading.value = true; try { content.value = await getContent(id) } catch (e) { ElMessage.error(e instanceof Error ? e.message : '内容加载失败') } finally { loading.value = false }; previewLoading.value = true; try { preview.value = await getContentPreview(id) } finally { previewLoading.value = false } }
+async function loadContent(showLoading = true) { if (showLoading) loading.value = true; try { content.value = await getContent(id) } catch (e) { if (showLoading) ElMessage.error(e instanceof Error ? e.message : '内容加载失败') } finally { if (showLoading) loading.value = false } }
+async function load() { await loadContent(); previewLoading.value = true; try { preview.value = await getContentPreview(id) } finally { previewLoading.value = false } }
+async function pollPublishStatus() {
+  if (route.query.publishing !== '1') return
+  await loadContent(false)
+  if (!content.value || ['unpublished', 'publishing'].includes(content.value.publish_status)) {
+    publishPoll = setTimeout(pollPublishStatus, 2500)
+    return
+  }
+  const { publishing: _publishing, ...query } = route.query
+  void _publishing
+  await router.replace({ query })
+  if (content.value.publish_status === 'published') ElMessage.success('内容已发布')
+  else ElMessage.error(content.value.failure_reason || '发布失败，请检查发布记录')
+}
 async function submit() { try { await submitContent(id); ElMessage.success('已提交发布审核'); load() } catch (e) { ElMessage.error(e instanceof Error ? e.message : '提交失败') } }
 async function republish() { try { await ElMessageBox.confirm('确认重新执行发布吗？审核状态将保持通过。', '重新发布', { confirmButtonText: '重新发布', cancelButtonText: '取消' }); await republishContent(id); ElMessage.success('重新发布成功'); load() } catch (e) { if (e instanceof Error) ElMessage.error(e.message) } }
-onMounted(load)
+onMounted(async () => { await load(); await pollPublishStatus() })
+onBeforeUnmount(() => { if (publishPoll) clearTimeout(publishPoll) })
 </script>
 <template>
   <div class="page-shell" v-loading="loading">
     <PageHeader :title="content?.title || '内容详情'" :description="content?.description ?? undefined" eyebrow="CONTENT RECORD"><template #actions><el-button :icon="ArrowLeft" @click="router.back()">返回</el-button><el-button v-if="canEdit" :icon="Edit" @click="router.push(`/contents/${id}/edit`)">编辑</el-button><el-button v-if="canSubmit" type="primary" :icon="Promotion" @click="submit">{{ content?.review_status === 'rejected' ? '重新提交' : '提交发布' }}</el-button><el-button v-if="auth.isAdmin && content?.review_status === 'pending'" type="primary" @click="router.push(`/reviews/${id}`)">进入审核</el-button><el-button v-if="auth.isAdmin && content?.publish_status === 'failed'" type="warning" :icon="RefreshRight" @click="republish">重新发布</el-button><el-button v-if="content?.publish_status === 'published' && content.view_url" tag="a" :href="content.view_url" target="_blank" rel="noopener noreferrer" type="success" :icon="Link">打开内容</el-button></template></PageHeader>
     <PublishFlow v-if="content" :content="content" />
+    <el-alert v-if="route.query.publishing === '1' && ['unpublished', 'publishing'].includes(content?.publish_status || '')" title="正在发布内容" description="页面已跳转，后端正在上传并等待目标部署完成；状态会自动刷新。" type="info" :closable="false" show-icon />
     <el-alert v-if="content?.review_status === 'rejected'" title="审核已驳回" type="error" :closable="false" show-icon><template #default>{{ content.reject_reason }}</template></el-alert>
     <el-alert v-if="content?.publish_status === 'failed'" title="审核已通过，但自动发布失败" type="error" :closable="false" show-icon><template #default>{{ content.failure_reason }}<span v-if="auth.isAdmin"> 可使用“重新发布”再次执行发布，无需重新审核。</span></template></el-alert>
     <div v-if="content" class="detail-grid">

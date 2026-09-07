@@ -25,7 +25,6 @@ export const CONTENT_TYPES: Record<ContentType, string> = {
 export const USER_ROLES: Record<UserRole, string> = { admin: '管理员', employee: '普通员工' }
 export const USER_STATUS: Record<UserStatus, string> = { active: '启用', disabled: '禁用' }
 
-export const CATEGORIES = ['制度规范', '产品资料', '销售方案', '培训材料', '品牌素材', '公共资源']
 
 export const REVIEW_TAG_TYPES: Record<ReviewStatus, 'info' | 'warning' | 'success' | 'danger'> = {
   draft: 'info', pending: 'warning', approved: 'success', rejected: 'danger'

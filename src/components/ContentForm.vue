@@ -2,11 +2,11 @@
 import { computed, reactive, ref, watch } from 'vue'
 import type { FormInstance, FormRules } from 'element-plus'
 import FileUploader from './FileUploader.vue'
-import { CATEGORIES, CONTENT_TYPES } from '@/constants'
+import { CONTENT_TYPES } from '@/constants'
 import type { ContentItem, ContentPayload, ContentType } from '@/types/content'
 import type { PublishTarget } from '@/types/publish'
 
-const props = defineProps<{ initial?: ContentItem; targets: PublishTarget[] }>()
+const props = defineProps<{ initial?: ContentItem; targets: PublishTarget[]; categories: string[] }>()
 const model = reactive<ContentPayload>({ title: '', description: '', category: '', content_type: 'ppt', publish_target_id: undefined, content_body: '', files: [] })
 const formEl = ref<FormInstance>()
 const filteredTargets = computed(() => props.targets.filter((item) => item.enabled && item.content_types.includes(model.content_type)))
@@ -23,7 +23,7 @@ const rules: FormRules<ContentPayload> = {
 
 watch(() => props.initial, (value) => {
   if (!value) return
-  Object.assign(model, { title: value.title, description: value.description, category: value.category, content_type: value.content_type, publish_target_id: value.publish_target_id, content_body: value.content_body, file_name: value.file_name, file_size: value.file_size, files: [] })
+  Object.assign(model, { title: value.title, description: value.description || '', category: value.category || '', content_type: value.content_type, publish_target_id: value.publish_target_id || undefined, content_body: value.content_body === 'null' ? '' : value.content_body || '', file_name: value.file_name || undefined, file_size: value.file_size || undefined, files: [] })
 }, { immediate: true })
 watch(() => model.content_type, () => { model.files = []; if (!filteredTargets.value.some((item) => item.id === model.publish_target_id)) model.publish_target_id = undefined })
 
@@ -33,7 +33,7 @@ defineExpose({ model, validate: () => formEl.value?.validate() })
   <el-form ref="formEl" :model="model" :rules="rules" label-position="top" class="content-form">
     <div class="form-grid">
       <el-form-item label="内容标题" prop="title"><el-input v-model="model.title" maxlength="80" show-word-limit placeholder="请输入清晰、可检索的标题" /></el-form-item>
-      <el-form-item label="分类" prop="category"><el-select v-model="model.category" placeholder="选择分类"><el-option v-for="item in CATEGORIES" :key="item" :label="item" :value="item" /></el-select></el-form-item>
+      <el-form-item label="分类" prop="category"><el-select v-model="model.category" placeholder="选择分类"><el-option v-for="item in categories" :key="item" :label="item" :value="item" /></el-select></el-form-item>
     </div>
     <el-form-item label="简介"><el-input v-model="model.description" type="textarea" :rows="3" maxlength="300" show-word-limit placeholder="简要说明内容用途和适用人群" /></el-form-item>
     <div class="form-grid">

@@ -34,7 +34,7 @@ TEST_DB_NAME="${TEST_DB_NAME:-content_publish_test}"
 DB_USER="${DB_USER:-content_publish}"
 RUN_TESTS="${RUN_TESTS:-0}"
 FORCE_CONFIG="${FORCE_CONFIG:-0}"
-MAX_UPLOAD_SIZE_MB="${MAX_UPLOAD_SIZE_MB:-100}"
+MAX_UPLOAD_SIZE_MB="${MAX_UPLOAD_SIZE_MB:-1024}"
 UVICORN_WORKERS="${UVICORN_WORKERS:-2}"
 DEFAULT_HOST="$(hostname -f 2>/dev/null || hostname)"
 PUBLIC_URL="${PUBLIC_URL:-http://${DEFAULT_HOST}}"
@@ -199,7 +199,7 @@ LOCAL_PUBLISHED_ROOT=${DATA_ROOT}/published
 LOCAL_PUBLISHED_BASE_URL=${PUBLIC_URL}/published
 MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB}
 PUBLISH_CONNECTION_TIMEOUT_SECONDS=30
-PUBLISH_OPERATION_TIMEOUT_SECONDS=300
+PUBLISH_OPERATION_TIMEOUT_SECONDS=600
 CORS_ORIGINS=${PUBLIC_URL}
 DB_CONNECT_TIMEOUT_SECONDS=5
 DB_POOL_SIZE=10
@@ -328,8 +328,8 @@ server {
         proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto \$scheme;
         proxy_connect_timeout 30s;
-        proxy_read_timeout 360s;
-        proxy_send_timeout 360s;
+        proxy_read_timeout 720s;
+        proxy_send_timeout 720s;
     }
 
     location /published/ {

@@ -22,7 +22,7 @@ CREATE DATABASE content_publish;
 CREATE DATABASE content_publish_test;
 ```
 
-`content_publish_test` 必须是与开发、生产库隔离的专用测试库。测试夹具会清理并重建其中的六张业务表，绝不能把 `TEST_DATABASE_URL` 指向开发库或生产库。
+`content_publish_test` 必须是与开发、生产库隔离的专用测试库。测试夹具会清理并重建其中的七张业务表，绝不能把 `TEST_DATABASE_URL` 指向开发库或生产库。
 
 ## 2. 创建虚拟环境并安装依赖
 
@@ -62,7 +62,7 @@ JWT_SECRET_KEY=replace-with-a-long-random-production-secret
 SOURCE_STORAGE_ROOT=../local-data/source
 PREVIEW_STORAGE_ROOT=../local-data/preview
 LOCAL_PUBLISHED_ROOT=../local-data/published
-MAX_UPLOAD_SIZE_MB=100
+MAX_UPLOAD_SIZE_MB=1024
 CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 DB_CONNECT_TIMEOUT_SECONDS=5
 ```
@@ -88,7 +88,7 @@ alembic current
 alembic history
 ```
 
-初始迁移创建且仅创建六张业务表：`users`、`contents`、`publish_targets`、`review_records`、`publish_records`、`operation_logs`，并包含 PostgreSQL `JSONB`、`TIMESTAMPTZ`、约束、索引及外键。
+迁移创建七张业务表：`users`、`categories`、`contents`、`publish_targets`、`review_records`、`publish_records`、`operation_logs`，并包含 PostgreSQL `JSONB`、`TIMESTAMPTZ`、约束、索引及外键。
 
 ## 5. Seed 开发数据
 
@@ -143,10 +143,12 @@ pytest --cov=app --cov-report=term-missing
 
 ## 8. 用户角色与权限
 
-- `admin`：用户管理、审核、直接发布、重新发布、发布目标配置、全量日志和后台统计。
+- `admin`：用户管理、分类配置、审核、直接发布、重新发布、发布目标配置、全量日志和后台统计。
 - `employee`：维护自己的可编辑内容、提交审核、查看自己的记录、检索已发布内容。
 - 被禁用用户无法登录；已有 JWT 每次访问也会重新检查用户状态并返回 403。
 - 员工读取发布目标时不会收到服务器物理路径 `publish_root`。
+
+管理员通过 `GET/POST/PUT/PATCH/DELETE /api/categories` 管理分类。重命名会在同一事务中同步更新已有内容；已被内容引用的分类不能删除，但可以禁用。员工以及内容表单只读取已启用分类。
 
 ## 9. 内容与发布状态
 
@@ -209,6 +211,8 @@ Content -> ContentProcessorFactory -> PublishArtifact
 
 GitHub Pages 目标会校验配置的 Branch 是否与仓库实际的 Pages 发布分支一致。发布时系统在提交文件后继续等待对应 commit 构建完成，只有 Pages 部署成功才记录发布成功并返回访问地址。
 
+GitHub Repository 目标会在单文件超过普通 Git 100 MiB 限制时自动通过 Git LFS Batch API 上传，并向仓库提交 LFS 指针和 `.gitattributes`。GitHub Pages 官方不支持 Git LFS，因此 Pages 目标会在提交前拒绝此类大文件并给出替代目标提示，避免部署出只有指针或空内容的页面。
+
 ## 12. 凭证与安全
 
 Token、密码、Client Secret、私钥和 Passphrase 禁止写入 `config`。`CredentialService` 按以下规则在真正连接目标时延迟读取凭证：优先使用操作系统进程环境变量，未设置时读取 `backend/.env`。
@@ -226,14 +230,14 @@ PUBLISH_CREDENTIAL_ONEDRIVE_COMPANY_CLIENT_SECRET=...
 PUBLISH_CREDENTIAL_DROPBOX_COMPANY_TOKEN=...
 PUBLISH_CREDENTIAL_SFTP_INTERNAL_PASSWORD=...
 PUBLISH_CONNECTION_TIMEOUT_SECONDS=30
-PUBLISH_OPERATION_TIMEOUT_SECONDS=300
+PUBLISH_OPERATION_TIMEOUT_SECONDS=600
 ```
 
 GET API 和日志永远不返回 Secret；普通员工响应只包含目标 `id`、`name`、`target_type`、`content_types`、`enabled`。外部凭证缺失不影响应用启动或 Local 发布，只有调用对应远程目标时才返回脱敏错误。
 
 GitHub、OneDrive 和 Dropbox 的 HTTPS 请求使用操作系统证书存储进行 TLS 校验，兼容由公司 Windows 证书策略管理的代理或根证书；系统不会通过关闭证书校验来绕过连接问题。
 
-第三方实现依据官方接口：[GitHub Git Data REST API](https://docs.github.com/en/rest/git)、[Microsoft Graph 文件上传](https://learn.microsoft.com/en-us/graph/api/driveitem-put-content?view=graph-rest-1.0)、[Dropbox 上传会话](https://developers.dropbox.com/dbx-performance-guide) 与 [Paramiko SFTP](https://docs.paramiko.org/en/stable/api/sftp.html)。
+第三方实现依据官方接口：[GitHub Git Data REST API](https://docs.github.com/en/rest/git)、[GitHub 大文件限制](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github)、[GitHub LFS 与 Pages 限制](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-git-large-file-storage)、[Microsoft Graph 文件上传](https://learn.microsoft.com/en-us/graph/api/driveitem-put-content?view=graph-rest-1.0)、[Dropbox 上传会话](https://developers.dropbox.com/dbx-performance-guide) 与 [Paramiko SFTP](https://docs.paramiko.org/en/stable/api/sftp.html)。
 
 ## 13. 新增发布平台
 
@@ -255,7 +259,7 @@ backend/
 ├─ app/
 │  ├─ api/                  # 路由与依赖
 │  ├─ core/                 # 配置、安全、枚举、异常
-│  ├─ db/models/            # 六张业务表 ORM
+│  ├─ db/models/            # 七张业务表 ORM
 │  ├─ content_processors/   # 内容处理与 Artifact 生成
 │  ├─ target_publishers/    # 六种可插拔目标 Adapter
 │  ├─ publishers/           # 旧内容发布器兼容层

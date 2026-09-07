@@ -19,4 +19,4 @@ export const deletePublishTarget = async (id: number): Promise<DeleteResult> => 
   : request.delete<DeleteResult>(`/publish-targets/${id}`).then(unwrap)
 export const testPublishTarget = (id: number): Promise<{ connected: boolean }> => useMock
   ? Promise.resolve({ connected: true })
-  : request.post<{ connected: boolean }>(`/publish-targets/${id}/test`).then(unwrap)
+  : request.post<{ connected: boolean }>(`/publish-targets/${id}/test`, undefined, { timeout: 120 * 1000 }).then(unwrap)

@@ -9,7 +9,7 @@ from app.utils.paths import safe_child
 
 class DynamicPagePublisher(BasePublisher):
     def publish(self, content: Content, target: PublishTarget) -> PublishResult:
-        if not content.content_body:
+        if not content.content_body or content.content_body.strip().lower() == "null":
             raise PublishError("动态页面内容不能为空")
         relative_path, output_dir, view_url = self.prepare_output(content, target)
         page = f"<!doctype html><html lang='zh-CN'><head><meta charset='utf-8'><title>{html.escape(content.title)}</title></head><body>{content.content_body}</body></html>"

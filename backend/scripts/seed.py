@@ -10,6 +10,7 @@ from sqlalchemy import select  # noqa: E402
 
 from app.core.config import get_settings  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
+from app.db.models.category import Category  # noqa: E402
 from app.db.models.publish_target import PublishTarget  # noqa: E402
 from app.db.models.user import User  # noqa: E402
 from app.db.session import SessionLocal  # noqa: E402
@@ -23,6 +24,7 @@ TARGETS = (
     ("图片发布区", ["image"], "images"),
     ("公共文件区", ["file"], "files"),
 )
+DEFAULT_CATEGORIES = ("制度规范", "产品资料", "销售方案", "培训材料", "品牌素材", "公共资源")
 
 
 def seed() -> None:
@@ -32,6 +34,9 @@ def seed() -> None:
         {"username": "employee", "password": settings.seed_employee_password, "name": "普通员工", "role": "employee"},
     )
     with SessionLocal() as db:
+        for index, name in enumerate(DEFAULT_CATEGORIES, start=1):
+            if not db.scalar(select(Category).where(Category.name == name)):
+                db.add(Category(name=name, enabled=True, sort_order=index * 10))
         for values in users:
             existing = db.scalar(select(User).where(User.username == values["username"]))
             if not existing:

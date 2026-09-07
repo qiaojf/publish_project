@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.routes import auth, contents, dashboard, health, logs, publish_records, publish_targets, reviews, search, users
+from app.api.routes import auth, categories, contents, dashboard, health, logs, publish_records, publish_targets, reviews, search, users
 from app.core.config import get_settings
 from app.core.exceptions import AppError
 
@@ -54,7 +54,7 @@ async def unhandled_error_handler(_request: Request, exc: Exception) -> JSONResp
 
 
 api_prefix = "/api"
-for route in (health.router, auth.router, users.router, contents.router, reviews.router, publish_targets.router, publish_records.router, search.router, logs.router, dashboard.router):
+for route in (health.router, auth.router, users.router, categories.router, contents.router, reviews.router, publish_targets.router, publish_records.router, search.router, logs.router, dashboard.router):
     app.include_router(route, prefix=api_prefix)
 
 if settings.app_env == "development":
