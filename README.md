@@ -2,7 +2,7 @@
 
 面向公司内部的内容提交、审核、自动发布与检索平台。前端只负责用户交互和 REST API 调用，不读取服务器目录、不处理文件转换，也不自行拼接发布 URL。
 
-配套 FastAPI + PostgreSQL 后端位于 `backend/`。本地一键启动、联调和验收见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)，服务器生产部署见 [`docs/SERVER_DEPLOYMENT_README.md`](docs/SERVER_DEPLOYMENT_README.md)，验收结果见 [`docs/LOCAL_INTEGRATION_TEST_REPORT.md`](docs/LOCAL_INTEGRATION_TEST_REPORT.md)。
+配套 FastAPI + PostgreSQL 后端位于 `backend/`。本地一键启动、联调和验收见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)；无 root 权限的服务器部署见 [`docs/SERVER_DEPLOYMENT_NON_ROOT_README.md`](docs/SERVER_DEPLOYMENT_NON_ROOT_README.md)，有 root 权限的部署见 [`docs/SERVER_DEPLOYMENT_README.md`](docs/SERVER_DEPLOYMENT_README.md)；验收结果见 [`docs/LOCAL_INTEGRATION_TEST_REPORT.md`](docs/LOCAL_INTEGRATION_TEST_REPORT.md)。
 
 ## 技术栈
 
@@ -146,7 +146,6 @@ src/
 7. 对预置发布失败内容执行重新发布，无需重复审核。
 8. 员工仅能检索并打开已发布内容。
 9. 管理员查看操作日志和发布日志。
-
 
 
 

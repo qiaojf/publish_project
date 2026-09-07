@@ -1,5 +1,7 @@
 # 内容自动发布平台：Enterprise Linux 9 服务器部署指南
 
+> 本文需要 `root` 或 `sudo` 权限。无法取得 root 权限时，请改用 [`SERVER_DEPLOYMENT_NON_ROOT_README.md`](SERVER_DEPLOYMENT_NON_ROOT_README.md) 和 `scripts/deploy-el9-nonroot.sh`。
+
 本文面向以下服务器：
 
 ```text
