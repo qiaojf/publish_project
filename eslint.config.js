@@ -4,7 +4,7 @@ import tseslint from 'typescript-eslint'
 import globals from 'globals'
 
 export default [
-  { ignores: ['dist/**', 'node_modules/**', 'backend/**'] },
+  { ignores: ['dist/**', 'node_modules/**', 'backend/**', 'local-data/**'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   ...pluginVue.configs['flat/essential'],

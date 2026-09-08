@@ -20,9 +20,15 @@ class LocalTargetPublisher(BaseTargetPublisher):
         target_url = urlsplit(target.base_url.rstrip("/"))
         configured_path = configured.path.rstrip("/")
         target_path = target_url.path.rstrip("/")
+        is_site_relative = not target_url.scheme and not target_url.netloc and target.base_url.startswith("/")
         if (
-            target_url.scheme.lower() == configured.scheme.lower()
-            and target_url.netloc.lower() == configured.netloc.lower()
+            (
+                is_site_relative
+                or (
+                    target_url.scheme.lower() == configured.scheme.lower()
+                    and target_url.netloc.lower() == configured.netloc.lower()
+                )
+            )
             and (target_path == configured_path or target_path.startswith(f"{configured_path}/"))
         ):
             relative_url_path = target_path[len(configured_path):].strip("/")

@@ -28,7 +28,7 @@ if ($frontendEnv -match "(?m)^\s*VITE_USE_MOCK\s*=\s*true\s*$") {
 $pgCtl = Join-Path $portablePgRoot "bin\pg_ctl.exe"
 $pgIsReady = Join-Path $portablePgRoot "bin\pg_isready.exe"
 if ((Test-Path $pgCtl) -and (Test-Path $portablePgData)) {
-    if (-not (Test-NetConnection -ComputerName 127.0.0.1 -Port 5432 -InformationLevel Quiet)) {
+    if (-not (Test-NetConnection -ComputerName 127.0.0.1 -Port 5432 -InformationLevel Quiet -WarningAction SilentlyContinue)) {
         & $pgCtl -D $portablePgData -l (Join-Path $logRoot "postgres.log") start | Out-Host
     }
 } elseif (-not (Get-Command pg_isready -ErrorAction SilentlyContinue)) {
@@ -63,18 +63,18 @@ try {
     Pop-Location
 }
 
-if (-not (Test-NetConnection -ComputerName 127.0.0.1 -Port 8000 -InformationLevel Quiet)) {
+if (-not (Test-NetConnection -ComputerName 127.0.0.1 -Port 8000 -InformationLevel Quiet -WarningAction SilentlyContinue)) {
     $backendProcess = Start-Process -FilePath $venvPython `
-        -ArgumentList "-m", "uvicorn", "app.main:app", "--host", "127.0.0.1", "--port", "8000" `
+        -ArgumentList "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000" `
         -WorkingDirectory $backendRoot -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput (Join-Path $logRoot "backend.out.log") `
         -RedirectStandardError (Join-Path $logRoot "backend.err.log")
     Set-Content -LiteralPath (Join-Path $runtimeRoot "backend.pid") -Value $backendProcess.Id
 }
 
-if (-not (Test-NetConnection -ComputerName 127.0.0.1 -Port 5173 -InformationLevel Quiet)) {
+if (-not (Test-NetConnection -ComputerName 127.0.0.1 -Port 5173 -InformationLevel Quiet -WarningAction SilentlyContinue)) {
     $frontendProcess = Start-Process -FilePath (Get-Command npm.cmd).Source `
-        -ArgumentList "run", "dev", "--", "--host", "127.0.0.1", "--port", "5173" `
+        -ArgumentList "run", "dev", "--", "--host", "0.0.0.0", "--port", "5173" `
         -WorkingDirectory $projectRoot -WindowStyle Hidden -PassThru `
         -RedirectStandardOutput (Join-Path $logRoot "frontend.out.log") `
         -RedirectStandardError (Join-Path $logRoot "frontend.err.log")
@@ -107,4 +107,13 @@ Write-Host "Local deployment is ready." -ForegroundColor Green
 Write-Host "Frontend: http://127.0.0.1:5173"
 Write-Host "Swagger:  http://127.0.0.1:8000/docs"
 Write-Host "Health:   http://127.0.0.1:8000/api/health"
+$lanAddresses = [System.Net.Dns]::GetHostAddresses([System.Net.Dns]::GetHostName()) |
+    Where-Object { $_.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork -and -not [System.Net.IPAddress]::IsLoopback($_) } |
+    Select-Object -ExpandProperty IPAddressToString -Unique
+foreach ($lanAddress in $lanAddresses) {
+    Write-Host "LAN:      http://${lanAddress}:5173"
+}
+if ($lanAddresses) {
+    Write-Host "If another computer cannot connect, allow inbound TCP 5173 in Windows Defender Firewall." -ForegroundColor Yellow
+}
 Write-Host "Stop app servers with: powershell -ExecutionPolicy Bypass -File scripts\stop-local.ps1"

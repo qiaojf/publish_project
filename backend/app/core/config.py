@@ -30,7 +30,7 @@ class Settings(BaseSettings):
     preview_storage_root: Path = Path("./storage/preview")
     build_storage_root: Path = Path("../local-data/build")
     local_published_root: Path = Path("../local-data/published")
-    local_published_base_url: str = "http://localhost:8000/local-published"
+    local_published_base_url: str = "/local-published"
     max_upload_size_mb: int = Field(default=1024, gt=0, le=1024)
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     db_connect_timeout_seconds: int = Field(default=5, gt=0, le=60)

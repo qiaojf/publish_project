@@ -31,7 +31,7 @@ Copy-Item .env.example .env.local
 真实联调的前端变量：
 
 ```env
-VITE_API_BASE_URL=http://localhost:8000/api
+VITE_API_BASE_URL=/api
 VITE_USE_MOCK=false
 ```
 
@@ -43,8 +43,11 @@ TEST_DATABASE_URL=postgresql+psycopg://postgres:password@localhost:5432/content_
 SOURCE_STORAGE_ROOT=../local-data/source
 PREVIEW_STORAGE_ROOT=../local-data/preview
 LOCAL_PUBLISHED_ROOT=../local-data/published
+LOCAL_PUBLISHED_BASE_URL=/local-published
 CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
 ```
+
+本地开发服务器监听所有网卡。局域网用户通过启动脚本输出的 `http://局域网IP:5173` 访问；API 和 `/local-published` 均由 Vite 同源代理，发布目标的 URL 根地址建议使用 `/local-published/部门名称/`，不要填写 `localhost`。
 
 安装依赖：
 

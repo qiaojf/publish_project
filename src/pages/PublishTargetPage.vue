@@ -191,7 +191,7 @@ onMounted(load)
         <el-form-item label="支持内容类型（可多选）" prop="content_types"><el-select v-model="form.content_types" multiple collapse-tags :max-collapse-tags="4" placeholder="选择一种或多种类型" style="width:100%"><el-option v-for="type in availableContentTypes" :key="type" :label="CONTENT_TYPES[type]" :value="type" /></el-select><span class="form-hint">{{ TARGET_TYPE_HINTS[form.target_type] }}</span></el-form-item>
         <template v-if="form.target_type === 'local'">
           <el-form-item label="服务器发布根目录"><el-input v-model="form.publish_root" class="mono-input" placeholder="推荐：local-data/published/部门名称" /><span class="form-hint">支持相对路径和绝对路径；相对路径固定以项目根目录为基准，部署到生产环境时无需修改。</span></el-form-item>
-          <el-form-item label="URL 根地址"><el-input v-model="form.base_url" class="mono-input" placeholder="https://internal.example.com/content/" /></el-form-item>
+          <el-form-item label="URL 根地址"><el-input v-model="form.base_url" class="mono-input" placeholder="推荐：/local-published/部门名称/" /><span class="form-hint">本地及局域网使用建议填写站点相对地址，避免其他电脑访问到其自身的 localhost。</span></el-form-item>
         </template>
         <template v-else>
           <div class="adapter-strip"><span>{{ TARGET_TYPES[form.target_type] }}</span><strong>非敏感连接配置</strong></div>

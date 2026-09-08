@@ -8,10 +8,14 @@ foreach ($service in @("frontend", "backend")) {
     $servicePid = [int](Get-Content -LiteralPath $pidFile -Raw)
     $process = Get-Process -Id $servicePid -ErrorAction SilentlyContinue
     if ($process) {
-        & taskkill.exe /PID $servicePid /T /F | Out-Null
+        & taskkill.exe /PID $servicePid /T /F 2>$null | Out-Null
         if ($LASTEXITCODE -ne 0) {
-            Write-Warning "Could not stop $service (PID $servicePid). Run this script in the same user context that started the services."
-            continue
+            try {
+                Stop-Process -Id $servicePid -Force -ErrorAction Stop
+            } catch {
+                Write-Warning "Could not stop $service (PID $servicePid). Run this script in the same user context that started the services."
+                continue
+            }
         }
         Write-Host "Stopped $service (PID $servicePid)."
     }

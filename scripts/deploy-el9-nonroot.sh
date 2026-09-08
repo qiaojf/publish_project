@@ -501,7 +501,7 @@ SOURCE_STORAGE_ROOT=${DATA_ROOT}/source
 PREVIEW_STORAGE_ROOT=${DATA_ROOT}/preview
 BUILD_STORAGE_ROOT=${DATA_ROOT}/build
 LOCAL_PUBLISHED_ROOT=${DATA_ROOT}/published
-LOCAL_PUBLISHED_BASE_URL=${PUBLIC_URL}/published
+LOCAL_PUBLISHED_BASE_URL=/local-published
 MAX_UPLOAD_SIZE_MB=${MAX_UPLOAD_SIZE_MB}
 PUBLISH_CONNECTION_TIMEOUT_SECONDS=30
 PUBLISH_OPERATION_TIMEOUT_SECONDS=600
@@ -572,6 +572,11 @@ cat > "$CADDY_CONFIG" <<EOF
     }
 
     handle_path /published/* {
+        root * ${DATA_ROOT}/published
+        file_server
+    }
+
+    handle_path /local-published/* {
         root * ${DATA_ROOT}/published
         file_server
     }

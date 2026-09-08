@@ -40,3 +40,14 @@ def test_github_pages_allows_static_types_but_rejects_dynamic_pages() -> None:
     assert {item.value for item in payload.content_types} == set(static_types)
     with pytest.raises(ValidationError, match="仅支持静态内容"):
         PublishTargetPayload(content_types=ALL_TYPES, **fields)
+
+
+def test_local_target_accepts_site_relative_base_url() -> None:
+    payload = PublishTargetPayload(
+        name="销售部发布区",
+        target_type="local",
+        content_types=["html", "pdf"],
+        publish_root="local-data/published/sales",
+        base_url="/local-published/sales/",
+    )
+    assert payload.base_url == "/local-published/sales/"

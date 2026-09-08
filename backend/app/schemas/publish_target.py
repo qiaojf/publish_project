@@ -72,8 +72,11 @@ class PublishTargetPayload(BaseModel):
         if self.target_type == PublishTargetType.LOCAL:
             if not self.publish_root:
                 raise ValueError("Local 发布目标必须配置 publish_root")
-            if not self.base_url or not self.base_url.startswith(("http://", "https://")):
-                raise ValueError("Local 发布目标必须配置有效的 base_url")
+            if not self.base_url or not (
+                self.base_url.startswith(("http://", "https://"))
+                or (self.base_url.startswith("/") and not self.base_url.startswith("//"))
+            ):
+                raise ValueError("Local 发布目标必须配置有效的 HTTP(S) 或站点相对 base_url")
             self.config = {}
             self.credential_ref = None
             return self
