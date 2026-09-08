@@ -381,6 +381,13 @@ if [[ "$(readlink -f -- "$SOURCE_ROOT")" != "$(readlink -f -- "$APP_ROOT")" ]]; 
     "$SOURCE_ROOT/" "$APP_ROOT/"
 fi
 
+# Keep project-relative Local publish paths stable across development and production.
+# `local-data/published/...` resolves inside the project locally and to persistent DATA_ROOT after deployment.
+if [[ -e "$APP_ROOT/local-data" && ! -L "$APP_ROOT/local-data" ]]; then
+  die "$APP_ROOT/local-data 已存在且不是符号链接，请先确认其中数据并移至 $DATA_ROOT。"
+fi
+ln -sfn -- "$DATA_ROOT" "$APP_ROOT/local-data"
+
 echo "[3/10] 安装后端与进程管理依赖..."
 "$PYTHON" -m pip install --upgrade pip setuptools wheel
 "$PYTHON" -m pip install -r "$BACKEND_ROOT/requirements.txt"

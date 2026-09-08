@@ -190,7 +190,7 @@ onMounted(load)
         <div class="form-grid"><el-form-item label="名称" prop="name"><el-input v-model="form.name" placeholder="例如：公司文档发布区" /></el-form-item><el-form-item label="目标类型" prop="target_type"><el-select v-model="form.target_type" style="width:100%" @change="resetForType"><el-option v-for="(label, value) in TARGET_TYPES" :key="value" :label="label" :value="value" /></el-select></el-form-item></div>
         <el-form-item label="支持内容类型（可多选）" prop="content_types"><el-select v-model="form.content_types" multiple collapse-tags :max-collapse-tags="4" placeholder="选择一种或多种类型" style="width:100%"><el-option v-for="type in availableContentTypes" :key="type" :label="CONTENT_TYPES[type]" :value="type" /></el-select><span class="form-hint">{{ TARGET_TYPE_HINTS[form.target_type] }}</span></el-form-item>
         <template v-if="form.target_type === 'local'">
-          <el-form-item label="服务器发布根目录"><el-input v-model="form.publish_root" class="mono-input" placeholder="C:\company\published 或 /data/company/published" /><span class="form-hint">路径由后端使用，不会暴露给普通员工。</span></el-form-item>
+          <el-form-item label="服务器发布根目录"><el-input v-model="form.publish_root" class="mono-input" placeholder="推荐：local-data/published/部门名称" /><span class="form-hint">支持相对路径和绝对路径；相对路径固定以项目根目录为基准，部署到生产环境时无需修改。</span></el-form-item>
           <el-form-item label="URL 根地址"><el-input v-model="form.base_url" class="mono-input" placeholder="https://internal.example.com/content/" /></el-form-item>
         </template>
         <template v-else>

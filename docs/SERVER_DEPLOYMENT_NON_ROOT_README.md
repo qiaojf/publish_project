@@ -198,6 +198,8 @@ http://web1138.sh.fuk1:18080/published
 
 在后台“发布目标”中配置 Local 目标时，根目录和 URL 应与这两个值一致。若首次部署后再修改 `PUBLIC_URL` 或 `PUBLISH_DATA_ROOT`，还必须显式设置 `FORCE_CONFIG=1`；执行前先备份 `backend/.env`，并用原 JWT 密钥避免用户会话全部失效。
 
+Local 发布目标也支持项目相对路径，推荐填写 `local-data/published/部门名称`。相对路径固定以项目根目录为基准；部署脚本会把生产项目目录中的 `local-data` 映射到持久化数据目录，因此开发和生产可以保持同一个 `publish_root`。绝对路径仍然兼容。`base_url` 不属于文件路径，仍应填写该发布区实际可访问的 URL。
+
 ### 5.4 使用外部 PostgreSQL
 
 如果主机不适合运行数据库，建议使用公司现有或托管 PostgreSQL。数据库应提前创建，账号应拥有该数据库的建表、索引、读写权限：

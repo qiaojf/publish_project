@@ -1,7 +1,9 @@
 import os
 import shutil
 from pathlib import Path
+from urllib.parse import urlsplit
 
+from app.core.config import get_settings
 from app.core.exceptions import PublishPermissionError, PublishTargetConfigurationError, PublishUploadError
 from app.db.models.publish_target import PublishTarget
 from app.target_publishers.base import BaseTargetPublisher, PublishArtifact, TargetCapability, TargetPublishResult
@@ -14,6 +16,25 @@ class LocalTargetPublisher(BaseTargetPublisher):
     def validate_target(self, target: PublishTarget) -> None:
         if not target.publish_root or not target.base_url:
             raise PublishTargetConfigurationError("Local 发布目标缺少 publish_root 或 base_url")
+        configured = urlsplit(get_settings().local_published_base_url.rstrip("/"))
+        target_url = urlsplit(target.base_url.rstrip("/"))
+        configured_path = configured.path.rstrip("/")
+        target_path = target_url.path.rstrip("/")
+        if (
+            target_url.scheme.lower() == configured.scheme.lower()
+            and target_url.netloc.lower() == configured.netloc.lower()
+            and (target_path == configured_path or target_path.startswith(f"{configured_path}/"))
+        ):
+            relative_url_path = target_path[len(configured_path):].strip("/")
+            expected_root = safe_child(
+                get_settings().local_published_root,
+                *([part for part in relative_url_path.split("/") if part]),
+            )
+            actual_root = resolve_publish_root(target.publish_root)
+            if actual_root != expected_root:
+                raise PublishTargetConfigurationError(
+                    f"Local 发布根目录与 URL 根地址不匹配；当前 URL 应对应目录：{expected_root}"
+                )
 
     def publish(self, artifact: PublishArtifact, target: PublishTarget) -> TargetPublishResult:
         self.validate_target(target)

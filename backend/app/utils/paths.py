@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from app.core.config import BACKEND_ROOT
+from app.core.config import PROJECT_ROOT
 from app.core.exceptions import PublishError
 
 
@@ -14,7 +14,7 @@ def safe_child(root: Path, *parts: str) -> Path:
 
 def resolve_publish_root(value: str) -> Path:
     raw = Path(value)
-    root = raw if raw.is_absolute() else BACKEND_ROOT / raw
+    root = raw if raw.is_absolute() else PROJECT_ROOT / raw
     return root.resolve()
 
 

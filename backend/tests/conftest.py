@@ -51,6 +51,7 @@ def seeded(db: Session, tmp_path: Path) -> dict[str, int]:
     settings = get_settings()
     settings.source_storage_root = (tmp_path / "source").resolve()
     settings.build_storage_root = (tmp_path / "build").resolve()
+    settings.local_published_root = (tmp_path / "published").resolve()
     db.add_all([
         Department(name=name, enabled=True, sort_order=index * 10)
         for index, name in enumerate(("管理部", "综合部", "销售部", "研发部", "法务部", "财务部"), start=1)
@@ -65,7 +66,7 @@ def seeded(db: Session, tmp_path: Path) -> dict[str, int]:
     db.add_all(users)
     db.flush()
     target = PublishTarget(
-        name="PPT 发布区", target_type="local", config={}, content_types=["ppt"], publish_root=str(tmp_path / "published"),
+        name="PPT 发布区", target_type="local", config={}, content_types=["ppt"], publish_root=str(settings.local_published_root / "ppt"),
         base_url="http://localhost:8000/local-published/ppt/", enabled=True, created_by=users[0].id,
     )
     db.add(target)

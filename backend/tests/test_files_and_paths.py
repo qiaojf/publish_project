@@ -3,9 +3,10 @@ from pathlib import Path
 import pytest
 
 from app.core.constants import ContentType
+from app.core.config import PROJECT_ROOT
 from app.core.exceptions import InvalidFileError, PublishError
 from app.utils.files import validate_upload_name
-from app.utils.paths import build_view_url, safe_child
+from app.utils.paths import build_view_url, resolve_publish_root, safe_child
 from app.utils.slug import safe_slug
 
 
@@ -27,3 +28,11 @@ def test_safe_child_and_url(tmp_path: Path) -> None:
         safe_child(tmp_path, "..", "outside")
     assert build_view_url("https://internal.example/base/", "/12-demo/") == "https://internal.example/base/12-demo/"
     assert safe_slug("Quarterly Report 2026") == "quarterly-report-2026"
+
+
+def test_publish_root_is_relative_to_project_root_not_process_directory(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    assert resolve_publish_root("local-data/published/sales") == (
+        PROJECT_ROOT / "local-data" / "published" / "sales"
+    ).resolve()
+    assert resolve_publish_root(str(tmp_path / "absolute-published")) == (tmp_path / "absolute-published").resolve()
