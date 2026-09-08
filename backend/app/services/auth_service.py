@@ -1,7 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.core.constants import UserStatus
-from app.core.exceptions import AuthenticationError
+from app.core.exceptions import AuthenticationError, PermissionDenied
 from app.core.security import create_access_token, verify_password
 from app.repositories.operation_log_repository import OperationLogRepository
 from app.repositories.user_repository import UserRepository
@@ -16,7 +16,7 @@ class AuthService:
         if not user or not verify_password(password, user.password_hash):
             raise AuthenticationError("用户名或密码错误")
         if user.status != UserStatus.ACTIVE.value:
-            raise AuthenticationError("账号已被禁用")
+            raise PermissionDenied("账号已禁用，请联系管理员")
         OperationLogRepository.create(
             db, user_id=user.id, action="login", target_type="user", target_id=user.id,
             message="登录内容发布平台", ip_address=ip_address,

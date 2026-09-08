@@ -97,14 +97,18 @@ class ContentService:
         return content
 
     @staticmethod
-    def _ensure_view(content: Content, current_user: User) -> None:
-        if current_user.role != "admin" and content.created_by != current_user.id and content.publish_status != PublishStatus.PUBLISHED.value:
+    def _ensure_view(db: Session, content: Content, current_user: User) -> None:
+        if current_user.role == "admin" or content.created_by == current_user.id:
+            return
+        if content.publish_status != PublishStatus.PUBLISHED.value:
+            raise PermissionDenied("无权查看该内容")
+        if not CategoryService.can_view_published(db, content.category, current_user):
             raise PermissionDenied("无权查看该内容")
 
     @classmethod
     def get(cls, db: Session, content_id: int, current_user: User) -> ContentRead:
         content = cls._get_model(db, content_id)
-        cls._ensure_view(content, current_user)
+        cls._ensure_view(db, content, current_user)
         return content_to_read(content, include_body=True)
 
     @staticmethod
@@ -244,7 +248,7 @@ class ContentService:
     @classmethod
     def preview(cls, db: Session, content_id: int, current_user: User) -> ContentPreview:
         content = cls._get_model(db, content_id)
-        cls._ensure_view(content, current_user)
+        cls._ensure_view(db, content, current_user)
         source = cls._preview_source(content)
         metadata = cls._source_metadata(content)
         if source and (content.source_is_directory or len(metadata) > 1):
@@ -284,7 +288,7 @@ class ContentService:
     @classmethod
     def preview_file(cls, db: Session, content_id: int, current_user: User) -> tuple[Path, str]:
         content = cls._get_model(db, content_id)
-        cls._ensure_view(content, current_user)
+        cls._ensure_view(db, content, current_user)
         source = cls._preview_source(content)
         if not source or not source.is_file():
             raise ResourceNotFound("预览源文件不存在")
@@ -295,7 +299,7 @@ class ContentService:
         cls, db: Session, content_id: int, relative_path: str, current_user: User,
     ) -> tuple[Path, str]:
         content = cls._get_model(db, content_id)
-        cls._ensure_view(content, current_user)
+        cls._ensure_view(db, content, current_user)
         source = cls._source_entry(content, relative_path)
         if not source:
             raise ResourceNotFound("源文件不存在")

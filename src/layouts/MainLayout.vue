@@ -5,7 +5,7 @@ import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { COMPANY_LOGO_URL, COMPANY_SITE_URL, USER_ROLES } from '@/constants'
-import { Bell, Collection, Document, Expand, Files, Fold, House, Reading, Search, Setting, SwitchButton, User } from '@element-plus/icons-vue'
+import { Bell, Collection, Document, Expand, Files, Fold, House, OfficeBuilding, Reading, Search, Setting, SwitchButton, User } from '@element-plus/icons-vue'
 
 const auth = useAuthStore()
 const app = useAppStore()
@@ -18,6 +18,7 @@ const menus = computed(() => [
   { label: '内容检索', path: '/search', icon: Search },
   ...(auth.isAdmin ? [
     { label: '用户管理', path: '/users', icon: User },
+    { label: '部门配置', path: '/settings/departments', icon: OfficeBuilding },
     { label: '分类配置', path: '/settings/categories', icon: Files },
     { label: '发布配置', path: '/settings/publish-targets', icon: Setting },
     { label: '系统日志', path: '/logs', icon: Collection }

@@ -676,7 +676,7 @@ cd "$ROOT/app/backend"
 curl -fsS "http://127.0.0.1:18080/api/health"
 ```
 
-迁移版本应为 `20260907_0004 (head)`，健康检查应返回 `status: ok`。如果迁移失败，查看终端中的 Alembic 原始错误以及 `$ROOT/logs/backend.log`，不要手工修改 `alembic_version`。
+当前迁移版本应为 `20260908_0006 (head)`，健康检查应返回 `status: ok`。如果迁移失败，查看终端中的 Alembic 原始错误以及 `$ROOT/logs/backend.log`，不要手工修改 `alembic_version`。
 
 ## 17. 官方参考
 

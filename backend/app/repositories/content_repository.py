@@ -2,11 +2,12 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import Session, selectinload
 
 from app.db.base import utc_now
 from app.db.models.content import Content
+from app.db.models.category import Category
 from app.db.models.publish_record import PublishRecord
 from app.db.models.review_record import ReviewRecord
 
@@ -95,9 +96,24 @@ class ContentRepository:
     @staticmethod
     def search_published(
         db: Session, *, keyword: str | None, content_type: str | None, category: str | None,
-        date_from: datetime | None, date_to: datetime | None, page: int, page_size: int,
+        date_from: datetime | None, date_to: datetime | None, viewer_id: int | None,
+        viewer_department: str | None, page: int, page_size: int,
     ) -> tuple[list[Content], int]:
         filters = [Content.deleted_at.is_(None), Content.publish_status == "published"]
+        if viewer_id is not None:
+            visibility_options = [Category.visibility_scope == "all"]
+            if viewer_department:
+                visibility_options.append(and_(
+                    Category.visibility_scope == "department",
+                    func.lower(Category.department) == viewer_department.lower(),
+                ))
+            allowed_category = exists(
+                select(Category.id).where(
+                    Category.name == Content.category,
+                    or_(*visibility_options),
+                )
+            )
+            filters.append(or_(Content.created_by == viewer_id, allowed_category))
         if keyword:
             term = f"%{keyword}%"
             filters.append(or_(Content.title.ilike(term), Content.description.ilike(term)))

@@ -11,6 +11,7 @@ from app.core.config import get_settings
 from app.core.security import hash_password
 from app.db.base import Base
 from app.db.models.category import Category
+from app.db.models.department import Department
 from app.db.models.publish_target import PublishTarget
 from app.db.models.user import User
 from app.db.session import get_db
@@ -50,12 +51,16 @@ def seeded(db: Session, tmp_path: Path) -> dict[str, int]:
     settings = get_settings()
     settings.source_storage_root = (tmp_path / "source").resolve()
     settings.build_storage_root = (tmp_path / "build").resolve()
+    db.add_all([
+        Department(name=name, enabled=True, sort_order=index * 10)
+        for index, name in enumerate(("管理部", "综合部", "销售部", "研发部", "法务部", "财务部"), start=1)
+    ])
     db.add_all([Category(name=name, enabled=True, sort_order=index * 10) for index, name in enumerate(("制度规范", "产品资料", "销售方案", "培训材料", "品牌素材", "公共资源", "测试"), start=1)])
     users = [
-        User(username="admin", password_hash=hash_password("admin123"), name="系统管理员", role="admin", status="active"),
-        User(username="employee", password_hash=hash_password("employee123"), name="普通员工", role="employee", status="active"),
-        User(username="employee2", password_hash=hash_password("employee123"), name="其他员工", role="employee", status="active"),
-        User(username="disabled", password_hash=hash_password("employee123"), name="禁用员工", role="employee", status="disabled"),
+        User(username="admin", password_hash=hash_password("admin123"), name="系统管理员", department="管理部", role="admin", status="active"),
+        User(username="employee", password_hash=hash_password("employee123"), name="普通员工", department="销售部", role="employee", status="active"),
+        User(username="employee2", password_hash=hash_password("employee123"), name="其他员工", department="研发部", role="employee", status="active"),
+        User(username="disabled", password_hash=hash_password("employee123"), name="禁用员工", department="销售部", role="employee", status="disabled"),
     ]
     db.add_all(users)
     db.flush()

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from app.core.exceptions import ResourceNotFound
 from app.db.models.category import Category
 from app.db.models.content import Content
+from app.db.models.department import Department
 from app.db.models.operation_log import OperationLog
 from app.db.models.publish_target import PublishTarget
 from app.db.models.user import User
@@ -24,6 +25,7 @@ class LogService:
             "category": (Category, Category.name),
             "user": (User, User.username),
             "content": (Content, Content.title),
+            "department": (Department, Department.name),
             "publish_target": (PublishTarget, PublishTarget.name),
         }
         for target_type, (model, field) in model_fields.items():

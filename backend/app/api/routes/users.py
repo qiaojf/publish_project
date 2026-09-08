@@ -6,6 +6,7 @@ from app.api.deps import AdminUser, DbSession
 from app.core.constants import UserRole, UserStatus
 from app.schemas.common import ApiResponse, PageResult
 from app.schemas.user import UserCreate, UserRead, UserStatusUpdate, UserUpdate
+from app.services.department_service import DepartmentService
 from app.services.user_service import UserService
 
 
@@ -24,6 +25,12 @@ def list_users(
 @router.post("", response_model=ApiResponse[UserRead], status_code=status.HTTP_201_CREATED, summary="新增用户")
 def create_user(payload: UserCreate, db: DbSession, admin: AdminUser) -> ApiResponse[UserRead]:
     return ApiResponse(data=UserService.create(db, payload, admin), message="用户已创建")
+
+
+@router.get("/departments", response_model=ApiResponse[list[str]], summary="已有部门列表")
+def list_departments(db: DbSession, _admin: AdminUser) -> ApiResponse[list[str]]:
+    items = DepartmentService.list(db, _admin, include_disabled=False)
+    return ApiResponse(data=[item.name for item in items])
 
 
 @router.get("/{user_id}", response_model=ApiResponse[UserRead], summary="用户详情")

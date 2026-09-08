@@ -18,7 +18,9 @@ pytestmark = pytest.mark.integration
 
 def test_authentication_and_role_guards(client: TestClient, db: Session, seeded: dict[str, int]) -> None:
     assert client.post("/api/auth/login", json={"username": "admin", "password": "wrong"}).status_code == 401
-    assert client.post("/api/auth/login", json={"username": "disabled", "password": "employee123"}).status_code == 401
+    disabled = client.post("/api/auth/login", json={"username": "disabled", "password": "employee123"})
+    assert disabled.status_code == 403
+    assert disabled.json()["message"] == "账号已禁用，请联系管理员"
     employee_headers = auth_headers(client, "employee")
     assert client.get("/api/users", headers=employee_headers).status_code == 403
     assert client.get("/api/reviews", headers=employee_headers).status_code == 403

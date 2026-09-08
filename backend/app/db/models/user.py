@@ -29,6 +29,7 @@ class User(TimestampMixin, Base):
     username: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
+    department: Mapped[str | None] = mapped_column(String(100), index=True)
     role: Mapped[str] = mapped_column(String(20), default=UserRole.EMPLOYEE.value, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default=UserStatus.ACTIVE.value, nullable=False)
     deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

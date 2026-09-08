@@ -8,6 +8,7 @@ from app.repositories.operation_log_repository import OperationLogRepository
 from app.repositories.user_repository import UserRepository
 from app.schemas.common import PageResult
 from app.schemas.user import UserCreate, UserRead, UserStatusUpdate, UserUpdate
+from app.services.department_service import DepartmentService
 
 
 class UserService:
@@ -27,8 +28,11 @@ class UserService:
     def create(db: Session, payload: UserCreate, operator: User) -> UserRead:
         if UserRepository.get_by_username(db, payload.username, include_deleted=True):
             raise BusinessRuleError("用户名已存在")
+        department = DepartmentService.require_enabled(db, payload.department)
         user = UserRepository.create(
-            db, username=payload.username, name=payload.name, password_hash=hash_password(payload.password),
+            db, username=payload.username, name=payload.name,
+            department=department.name if department else None,
+            password_hash=hash_password(payload.password),
             role=payload.role.value, status=payload.status.value,
         )
         OperationLogRepository.create(db, user_id=operator.id, action="create_user", target_type="user", target_id=user.id, message=f"创建用户 {user.name}")
@@ -44,8 +48,10 @@ class UserService:
         duplicate = UserRepository.get_by_username(db, payload.username, include_deleted=True)
         if duplicate and duplicate.id != user_id:
             raise BusinessRuleError("用户名已存在")
+        department = DepartmentService.require_enabled(db, payload.department)
         user.username = payload.username
         user.name = payload.name
+        user.department = department.name if department else None
         user.role = payload.role.value
         user.status = payload.status.value
         if payload.password:

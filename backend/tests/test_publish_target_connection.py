@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.db.models.publish_record import PublishRecord
 from app.db.models.publish_target import PublishTarget
+from app.core.constants import ContentType
 from tests.conftest import auth_headers
 
 
@@ -41,3 +42,34 @@ def test_publish_target_get_never_returns_secret(
     employee_data = client.get("/api/publish-targets", headers=employee).json()["data"]
     visible = next(item for item in employee_data if item["id"] == target.id)
     assert set(visible) == {"id", "name", "target_type", "content_types", "enabled"}
+
+
+def test_local_target_can_be_renamed_support_multiple_types_and_be_disabled(
+    client: TestClient, seeded: dict[str, int], tmp_path: Path,
+) -> None:
+    admin = auth_headers(client, "admin", "admin123")
+    content_types = [item.value for item in ContentType]
+    updated = client.put(
+        f"/api/publish-targets/{seeded['target']}",
+        json={
+            "name": "销售部综合发布区",
+            "target_type": "local",
+            "content_types": content_types,
+            "publish_root": str(tmp_path / "sales-published"),
+            "base_url": "https://internal.example.com/sales/",
+            "config": {},
+            "enabled": True,
+        },
+        headers=admin,
+    )
+    assert updated.status_code == 200, updated.text
+    assert updated.json()["data"]["name"] == "销售部综合发布区"
+    assert set(updated.json()["data"]["content_types"]) == set(content_types)
+
+    disabled = client.patch(
+        f"/api/publish-targets/{seeded['target']}/status",
+        json={"enabled": False},
+        headers=admin,
+    )
+    assert disabled.status_code == 200, disabled.text
+    assert disabled.json()["data"]["enabled"] is False

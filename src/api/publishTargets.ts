@@ -4,9 +4,27 @@ import { useMock, unwrap } from './runtime'
 import type { DeleteResult } from '@/types/api'
 import type { PublishTarget, PublishTargetPayload } from '@/types/publish'
 
+function normalizedPayload(data: PublishTargetPayload): PublishTargetPayload {
+  return {
+    ...data,
+    name: data.name.trim(),
+    content_types: [...new Set(data.content_types)],
+    config: { ...data.config },
+    credential_ref: data.credential_ref?.trim() || undefined,
+    publish_root: data.publish_root?.trim() || undefined,
+    base_url: data.base_url?.trim() || undefined
+  }
+}
+
 export const getPublishTargets = (): Promise<PublishTarget[]> => useMock ? mockDb.getTargets() : request.get<PublishTarget[]>('/publish-targets').then(unwrap)
-export const createPublishTarget = (data: PublishTargetPayload): Promise<PublishTarget> => useMock ? mockDb.createTarget(data) : request.post<PublishTarget>('/publish-targets', data).then(unwrap)
-export const updatePublishTarget = (id: number, data: PublishTargetPayload): Promise<PublishTarget> => useMock ? mockDb.updateTarget(id, data) : request.put<PublishTarget>(`/publish-targets/${id}`, data).then(unwrap)
+export const createPublishTarget = (data: PublishTargetPayload): Promise<PublishTarget> => {
+  const payload = normalizedPayload(data)
+  return useMock ? mockDb.createTarget(payload) : request.post<PublishTarget>('/publish-targets', payload).then(unwrap)
+}
+export const updatePublishTarget = (id: number, data: PublishTargetPayload): Promise<PublishTarget> => {
+  const payload = normalizedPayload(data)
+  return useMock ? mockDb.updateTarget(id, payload) : request.put<PublishTarget>(`/publish-targets/${id}`, payload).then(unwrap)
+}
 export const updatePublishTargetStatus = async (id: number, enabled: boolean): Promise<PublishTarget> => {
   if (!useMock) return request.patch<PublishTarget>(`/publish-targets/${id}/status`, { enabled }).then(unwrap)
   await mockDb.updateTargetStatus(id, enabled)

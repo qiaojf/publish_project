@@ -11,6 +11,12 @@ class UserStatus(StrEnum):
     DISABLED = "disabled"
 
 
+class CategoryVisibility(StrEnum):
+    PUBLISHER = "publisher"
+    DEPARTMENT = "department"
+    ALL = "all"
+
+
 class ContentType(StrEnum):
     HTML = "html"
     DYNAMIC = "dynamic"
@@ -55,6 +61,17 @@ class PublishTargetType(StrEnum):
     GITHUB_PAGES = "github_pages"
     ONEDRIVE = "onedrive"
     DROPBOX = "dropbox"
+
+
+ALL_PUBLISHABLE_CONTENT_TYPES = frozenset(ContentType)
+PUBLISH_TARGET_CONTENT_TYPES: dict[PublishTargetType, frozenset[ContentType]] = {
+    PublishTargetType.LOCAL: ALL_PUBLISHABLE_CONTENT_TYPES,
+    PublishTargetType.SFTP: ALL_PUBLISHABLE_CONTENT_TYPES,
+    PublishTargetType.GITHUB: ALL_PUBLISHABLE_CONTENT_TYPES,
+    PublishTargetType.GITHUB_PAGES: ALL_PUBLISHABLE_CONTENT_TYPES - {ContentType.DYNAMIC},
+    PublishTargetType.ONEDRIVE: ALL_PUBLISHABLE_CONTENT_TYPES,
+    PublishTargetType.DROPBOX: ALL_PUBLISHABLE_CONTENT_TYPES,
+}
 
 
 ALLOWED_EXTENSIONS: dict[ContentType, set[str]] = {

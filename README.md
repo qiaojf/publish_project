@@ -24,6 +24,11 @@
   -D ".\local-data\postgres-data" `
   -l ".\local-data\postgres\pgsql\postgres.log"
 ```
+执行数据库迁移命令：
+```powershell
+cd backend
+.\.venv\Scripts\alembic.exe upgrade head
+```
 
 完整本地环境可从项目根目录一键启动：
 

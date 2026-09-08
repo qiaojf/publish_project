@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { reactive, ref } from 'vue'
+import { isAxiosError } from 'axios'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
 import { Lock, User } from '@element-plus/icons-vue'
@@ -23,7 +24,10 @@ async function submit() {
     await auth.login(form.username.trim(), form.password)
     ElMessage.success(`欢迎回来，${auth.user?.name}`)
     router.replace(typeof route.query.redirect === 'string' ? route.query.redirect : '/')
-  } catch (error) { ElMessage.error(error instanceof Error ? error.message : '登录失败') }
+  } catch (error) {
+    const message = isAxiosError<{ message?: string }>(error) ? error.response?.data?.message : undefined
+    ElMessage.error(message || (error instanceof Error ? error.message : '登录失败'))
+  }
 }
 function useAccount(username: string, password: string) { form.username = username; form.password = password }
 </script>

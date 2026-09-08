@@ -1,4 +1,5 @@
 import type { ContentType, PublishStatus, ReviewStatus } from '@/types/content'
+import type { CategoryVisibility } from '@/types/category'
 import type { PublishRecordStatus } from '@/types/publish'
 import type { UserRole, UserStatus } from '@/types/user'
 
@@ -24,6 +25,9 @@ export const CONTENT_TYPES: Record<ContentType, string> = {
 
 export const USER_ROLES: Record<UserRole, string> = { admin: '管理员', employee: '普通员工' }
 export const USER_STATUS: Record<UserStatus, string> = { active: '启用', disabled: '禁用' }
+export const CATEGORY_VISIBILITY: Record<CategoryVisibility, string> = {
+  publisher: '仅发布者', department: '指定部门', all: '所有人'
+}
 
 
 export const REVIEW_TAG_TYPES: Record<ReviewStatus, 'info' | 'warning' | 'success' | 'danger'> = {

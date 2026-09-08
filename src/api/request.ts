@@ -21,7 +21,7 @@ request.interceptors.response.use(
       localStorage.removeItem('publish-console-user')
       if (location.pathname !== '/login') location.href = '/login'
     } else if (status === 403) {
-      if (location.pathname !== '/403') location.href = '/403'
+      if (location.pathname !== '/login' && location.pathname !== '/403') location.href = '/403'
     } else {
       ElMessage.error(error.response?.data?.message || (error.request ? '网络连接失败，请稍后重试' : '请求处理失败'))
     }

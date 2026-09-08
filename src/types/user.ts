@@ -7,6 +7,7 @@ export interface CurrentUser {
   id: number
   username: string
   name: string
+  department: string | null
   role: UserRole
   status: UserStatus
 }
@@ -25,6 +26,7 @@ export interface UserQuery extends PageParams {
 export interface UserPayload {
   username: string
   name: string
+  department?: string | null
   password?: string
   role: UserRole
   status: UserStatus

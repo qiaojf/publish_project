@@ -5,7 +5,8 @@ def test_openapi_contains_required_operations() -> None:
     schema = app.openapi()
     required = {
         "/api/health", "/api/auth/login", "/api/auth/logout", "/api/auth/me",
-        "/api/users", "/api/categories", "/api/categories/{category_id}",
+        "/api/users", "/api/users/departments", "/api/departments", "/api/departments/{department_id}",
+        "/api/departments/{department_id}/status", "/api/categories", "/api/categories/{category_id}",
         "/api/categories/{category_id}/status", "/api/contents", "/api/contents/{content_id}/submit",
         "/api/contents/{content_id}/publish", "/api/contents/{content_id}/republish",
         "/api/contents/{content_id}/preview", "/api/contents/{content_id}/preview/file",
@@ -15,4 +16,4 @@ def test_openapi_contains_required_operations() -> None:
         "/api/search", "/api/logs/operations", "/api/dashboard",
     }
     assert required.issubset(schema["paths"].keys())
-    assert len(schema["paths"]) == 31
+    assert len(schema["paths"]) == 35

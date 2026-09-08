@@ -17,8 +17,25 @@ const operationActionMap: Record<string, string> = {
   重新发布: 'republish_content',
   新增用户: 'create_user',
   编辑用户: 'update_user',
+  启用用户: 'enable_user',
+  禁用用户: 'disable_user',
+  删除用户: 'delete_user',
+  新增部门: 'create_department',
+  编辑部门: 'update_department',
+  启用部门: 'enable_department',
+  禁用部门: 'disable_department',
+  删除部门: 'delete_department',
+  新增分类: 'create_category',
+  编辑分类: 'update_category',
+  启用分类: 'enable_category',
+  禁用分类: 'disable_category',
+  删除分类: 'delete_category',
   新增发布配置: 'create_publish_target',
-  编辑发布配置: 'update_publish_target'
+  编辑发布配置: 'update_publish_target',
+  启用发布配置: 'enable_publish_target',
+  禁用发布配置: 'disable_publish_target',
+  测试发布配置: 'test_publish_target',
+  删除发布配置: 'delete_publish_target'
 }
 const operationActionLabel = Object.fromEntries(
   Object.entries(operationActionMap).map(([label, value]) => [value, label])

@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
@@ -27,7 +29,7 @@ class UserRepository:
         filters = [User.deleted_at.is_(None)]
         if keyword:
             term = f"%{keyword}%"
-            filters.append(or_(User.username.ilike(term), User.name.ilike(term)))
+            filters.append(or_(User.username.ilike(term), User.name.ilike(term), User.department.ilike(term)))
         if role:
             filters.append(User.role == role)
         if status:

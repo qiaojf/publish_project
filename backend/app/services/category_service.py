@@ -1,5 +1,6 @@
 from sqlalchemy.orm import Session
 
+from app.core.constants import CategoryVisibility
 from app.core.exceptions import BusinessRuleError, ResourceNotFound
 from app.db.base import utc_now
 from app.db.models.category import Category
@@ -7,9 +8,26 @@ from app.db.models.user import User
 from app.repositories.category_repository import CategoryRepository
 from app.repositories.operation_log_repository import OperationLogRepository
 from app.schemas.category import CategoryPayload, CategoryRead, CategoryStatusUpdate
+from app.services.department_service import DepartmentService
 
 
 class CategoryService:
+    @staticmethod
+    def can_view_published(db: Session, category_name: str | None, current_user: User) -> bool:
+        if current_user.role == "admin":
+            return True
+        category = CategoryRepository.get_by_name(db, category_name) if category_name else None
+        if not category:
+            return False
+        if category.visibility_scope == CategoryVisibility.ALL.value:
+            return True
+        return bool(
+            category.visibility_scope == CategoryVisibility.DEPARTMENT.value
+            and category.department
+            and current_user.department
+            and category.department.casefold() == current_user.department.casefold()
+        )
+
     @staticmethod
     def list(db: Session, current_user: User, *, include_disabled: bool) -> list[CategoryRead]:
         enabled_only = current_user.role != "admin" or not include_disabled
@@ -30,7 +48,12 @@ class CategoryService:
     def create(db: Session, payload: CategoryPayload, operator: User) -> CategoryRead:
         if CategoryRepository.get_by_name(db, payload.name):
             raise BusinessRuleError("分类名称已存在")
-        category = CategoryRepository.create(db, name=payload.name, enabled=payload.enabled, sort_order=payload.sort_order)
+        department = DepartmentService.require_enabled(db, payload.department)
+        category = CategoryRepository.create(
+            db, name=payload.name, enabled=payload.enabled, sort_order=payload.sort_order,
+            visibility_scope=payload.visibility_scope.value,
+            department=department.name if department else None,
+        )
         OperationLogRepository.create(db, user_id=operator.id, action="create_category", target_type="category", target_id=category.id, message=f"创建分类 {category.name}")
         db.commit(); db.refresh(category)
         return CategoryRead.model_validate(category)
@@ -43,10 +66,16 @@ class CategoryService:
         duplicate = CategoryRepository.get_by_name(db, payload.name)
         if duplicate and duplicate.id != category.id:
             raise BusinessRuleError("分类名称已存在")
+        department = DepartmentService.require_enabled(db, payload.department)
         old_name = category.name
         if old_name != payload.name:
             CategoryRepository.rename_contents(db, old_name, payload.name)
-        category.name = payload.name; category.enabled = payload.enabled; category.sort_order = payload.sort_order; category.updated_at = utc_now()
+        category.name = payload.name
+        category.enabled = payload.enabled
+        category.sort_order = payload.sort_order
+        category.visibility_scope = payload.visibility_scope.value
+        category.department = department.name if department else None
+        category.updated_at = utc_now()
         OperationLogRepository.create(db, user_id=operator.id, action="update_category", target_type="category", target_id=category.id, message=f"更新分类 {category.name}")
         db.commit(); db.refresh(category)
         return CategoryRead.model_validate(category)

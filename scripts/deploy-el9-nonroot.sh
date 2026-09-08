@@ -518,8 +518,13 @@ from sqlalchemy import text
 from app.db.session import engine
 
 with engine.connect() as connection:
-    connection.execute(text("SELECT id, name, enabled, sort_order, created_at, updated_at FROM categories LIMIT 1"))
-print("Database schema check passed: categories")
+    connection.execute(text(
+        "SELECT id, name, enabled, sort_order, visibility_scope, department, created_at, updated_at "
+        "FROM categories LIMIT 1"
+    ))
+    connection.execute(text("SELECT department FROM users LIMIT 1"))
+    connection.execute(text("SELECT id, name, enabled, sort_order FROM departments LIMIT 1"))
+print("Database schema check passed: departments, users.department and category visibility")
 PY
   SEED_ADMIN_PASSWORD="$INITIAL_ADMIN_PASSWORD" SEED_EMPLOYEE_PASSWORD="$INITIAL_EMPLOYEE_PASSWORD" "$PYTHON" scripts/seed.py
 )

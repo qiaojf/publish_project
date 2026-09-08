@@ -3,7 +3,7 @@ from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
-from app.core.constants import ContentType, PublishTargetType
+from app.core.constants import ContentType, PUBLISH_TARGET_CONTENT_TYPES, PublishTargetType
 
 
 TARGET_CONFIG_FIELDS: dict[PublishTargetType, tuple[str, ...]] = {
@@ -64,6 +64,11 @@ class PublishTargetPayload(BaseModel):
 
     @model_validator(mode="after")
     def validate_target_configuration(self) -> "PublishTargetPayload":
+        unsupported = [item.value for item in self.content_types if item not in PUBLISH_TARGET_CONTENT_TYPES[self.target_type]]
+        if unsupported:
+            if self.target_type == PublishTargetType.GITHUB_PAGES:
+                raise ValueError("GitHub Pages 仅支持静态内容，不支持动态页面")
+            raise ValueError(f"{self.target_type.value} 不支持内容类型：{', '.join(unsupported)}")
         if self.target_type == PublishTargetType.LOCAL:
             if not self.publish_root:
                 raise ValueError("Local 发布目标必须配置 publish_root")
