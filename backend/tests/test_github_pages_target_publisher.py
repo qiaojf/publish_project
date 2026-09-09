@@ -10,8 +10,30 @@ from tests.test_github_target_publisher import make_artifact, make_target, make_
 
 def test_github_pages_returns_pages_url(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PUBLISH_CREDENTIAL_GITHUB_COMPANY_TOKEN", "token")
-    result = GitHubPagesTargetPublisher(make_transport()).publish(make_artifact(tmp_path), make_target("github_pages"))
+    state: dict[str, object] = {}
+    result = GitHubPagesTargetPublisher(make_transport(state)).publish(make_artifact(tmp_path), make_target("github_pages"))
     assert result.publish_url == "https://company.github.io/content/published/31-demo/"
+    tree_payload = state["tree_payload"]
+    assert isinstance(tree_payload, dict)
+    assert [item["path"] for item in tree_payload["tree"]] == ["published/31-demo/index.html"]
+
+
+def test_github_pages_publishes_single_file_at_original_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PUBLISH_CREDENTIAL_GITHUB_COMPANY_TOKEN", "token")
+    source = tmp_path / "src-montage.png"
+    source.write_bytes(b"png")
+    state: dict[str, object] = {
+        "existing_tree": [{"path": "published/keep.txt", "type": "blob", "sha": "keep"}],
+    }
+
+    result = GitHubPagesTargetPublisher(make_transport(state)).publish(
+        PublishArtifact(source, source.name, "image", False), make_target("github_pages"),
+    )
+
+    assert result.publish_url == "https://company.github.io/content/published/src-montage.png"
+    tree_payload = state["tree_payload"]
+    assert isinstance(tree_payload, dict)
+    assert [item["path"] for item in tree_payload["tree"]] == ["published/src-montage.png"]
 
 
 def test_github_pages_rejects_dynamic_content(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

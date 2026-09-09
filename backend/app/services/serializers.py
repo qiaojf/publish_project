@@ -43,6 +43,7 @@ def content_to_read(content: Content, *, include_body: bool = False) -> ContentR
         content_body=content.content_body if include_body else None,
         created_by=content.created_by,
         creator_name=content.creator.name,
+        creator_department=content.creator.department,
         created_at=content.created_at,
         updated_at=content.updated_at,
         submitted_at=submitted,

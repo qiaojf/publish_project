@@ -36,7 +36,7 @@ class DropboxTargetPublisher(BaseTargetPublisher, RemoteHttpPublisher):
     @staticmethod
     def _remote_path(artifact: PublishArtifact, target: PublishTarget, source: Path) -> str:
         folder = str((target.config or {})["folder_path"]).replace("\\", "/").strip("/")
-        name = f"{artifact.generated_path}.zip" if artifact.is_directory else f"{artifact.generated_path}-{source.name}"
+        name = f"{artifact.generated_path}.zip" if artifact.is_directory else source.name
         return f"/{'/'.join(part for part in (folder, name) if part)}"
 
     @staticmethod

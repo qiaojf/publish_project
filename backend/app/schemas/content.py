@@ -46,6 +46,7 @@ class ContentRead(BaseModel):
     content_body: str | None = None
     created_by: int
     creator_name: str
+    creator_department: str | None = None
     created_at: datetime
     updated_at: datetime
     submitted_at: datetime | None = None

@@ -1,6 +1,7 @@
 import base64
 import hashlib
 import json
+from collections.abc import Iterator
 from pathlib import Path, PurePosixPath
 from urllib.parse import quote
 
@@ -43,20 +44,36 @@ class GitHubTargetPublisher(BaseTargetPublisher, RemoteHttpPublisher):
 
     @staticmethod
     def _prefix(config: dict[str, object], artifact: PublishArtifact) -> str:
-        repo_path = str(config.get("repo_path") or "").replace("\\", "/").strip("/")
-        return "/".join(part for part in (repo_path, artifact.generated_path) if part)
+        del artifact
+        return str(config.get("repo_path") or "").replace("\\", "/").strip("/")
+
+    def _files_for_publish(self, artifact: PublishArtifact) -> Iterator[tuple[Path, str]]:
+        if artifact.source_files is not None:
+            return iter(artifact.source_files)
+        return self.artifact_files(artifact)
+
+    def _delete_stale_files(self, artifact: PublishArtifact) -> bool:
+        del artifact
+        return False
 
     def _repo_api(self, config: dict[str, object]) -> str:
         owner = quote(str(config["owner"]), safe="")
         repo = quote(str(config["repo"]), safe="")
         return f"{self.api_root}/repos/{owner}/{repo}"
 
-    def _publish_url(self, config: dict[str, object], prefix: str) -> str:
+    def _publish_url(
+        self, config: dict[str, object], prefix: str, published_paths: tuple[str, ...], artifact: PublishArtifact,
+    ) -> str:
+        del artifact
         owner = quote(str(config["owner"]), safe="")
         repo = quote(str(config["repo"]), safe="")
         branch = quote(str(config["branch"]), safe="")
+        if len(published_paths) == 1:
+            path = quote(published_paths[0], safe="/")
+            return f"https://github.com/{owner}/{repo}/blob/{branch}/{path}"
         path = quote(prefix, safe="/")
-        return f"https://github.com/{owner}/{repo}/tree/{branch}/{path}"
+        suffix = f"/{path}" if path else ""
+        return f"https://github.com/{owner}/{repo}/tree/{branch}{suffix}"
 
     @staticmethod
     def _sha256(path: Path) -> str:
@@ -155,7 +172,7 @@ class GitHubTargetPublisher(BaseTargetPublisher, RemoteHttpPublisher):
         repo_api = self._repo_api(config)
         branch = quote(str(config["branch"]), safe="")
         prefix = self._prefix(config, artifact)
-        local_files = list(self.artifact_files(artifact))
+        local_files = list(self._files_for_publish(artifact))
         if not local_files:
             raise PublishUploadError("GitHub 发布 Artifact 为空")
 
@@ -177,10 +194,12 @@ class GitHubTargetPublisher(BaseTargetPublisher, RemoteHttpPublisher):
 
             tree_entries: list[dict[str, object]] = []
             current_paths: set[str] = set()
+            published_paths: list[str] = []
             lfs_paths: list[str] = []
             for local_file, relative in local_files:
                 remote_file = f"{prefix}/{relative}" if prefix else relative
                 current_paths.add(remote_file)
+                published_paths.append(remote_file)
                 if local_file.stat().st_size > self.regular_blob_limit_bytes:
                     content = self._upload_lfs_object(client, config, token, local_file, relative); lfs_paths.append(relative)
                 else:
@@ -198,11 +217,12 @@ class GitHubTargetPublisher(BaseTargetPublisher, RemoteHttpPublisher):
                 tree_entries = [entry for entry in tree_entries if entry["path"] != attributes_path]
                 tree_entries.append({"path": attributes_path, "mode": "100644", "type": "blob", "sha": self._create_blob(client, repo_api, headers, attributes)})
 
-            existing_prefix = f"{prefix}/" if prefix else ""
-            for item in existing_tree.get("tree", []):
-                existing_path = str(item.get("path") or "")
-                if item.get("type") == "blob" and existing_path.startswith(existing_prefix) and existing_path not in current_paths:
-                    tree_entries.append({"path": existing_path, "mode": "100644", "type": "blob", "sha": None})
+            if self._delete_stale_files(artifact):
+                existing_prefix = f"{prefix}/" if prefix else ""
+                for item in existing_tree.get("tree", []):
+                    existing_path = str(item.get("path") or "")
+                    if item.get("type") == "blob" and existing_path.startswith(existing_prefix) and existing_path not in current_paths:
+                        tree_entries.append({"path": existing_path, "mode": "100644", "type": "blob", "sha": None})
 
             tree = self.request(
                 client, "POST", f"{repo_api}/git/trees", headers=headers,
@@ -220,7 +240,9 @@ class GitHubTargetPublisher(BaseTargetPublisher, RemoteHttpPublisher):
                 json={"sha": commit_sha, "force": False}, operation="GitHub 更新分支",
             )
         return TargetPublishResult(
-            True, self._publish_url(config, prefix), f"{config['owner']}/{config['repo']}:{config['branch']}/{prefix}",
+            True,
+            self._publish_url(config, prefix, tuple(published_paths), artifact),
+            f"{config['owner']}/{config['repo']}:{config['branch']}/{published_paths[0] if len(published_paths) == 1 else prefix}",
             "GitHub Repository 提交成功", commit_sha,
         )
 

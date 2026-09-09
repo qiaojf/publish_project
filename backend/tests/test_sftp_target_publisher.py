@@ -62,6 +62,21 @@ def test_sftp_target_uploads_recursively(tmp_path: Path, monkeypatch: pytest.Mon
     }
 
 
+def test_sftp_target_uploads_single_file_using_original_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PUBLISH_CREDENTIAL_SFTP_INTERNAL_PASSWORD", "not-logged")
+    source = tmp_path / "src-montage.png"
+    source.write_bytes(b"png")
+    sftp = FakeSftp()
+
+    result = SftpTargetPublisher(lambda: FakeClient(sftp)).publish(
+        PublishArtifact(source, source.name, "image", False), make_target(),
+    )
+
+    assert result.publish_url == "https://internal.example/content/src-montage.png"
+    assert result.remote_path == "/srv/content/src-montage.png"
+    assert [remote for _, remote in sftp.uploads] == ["/srv/content/src-montage.png"]
+
+
 def test_sftp_authentication_failure_is_sanitized(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PUBLISH_CREDENTIAL_SFTP_INTERNAL_PASSWORD", "super-secret")
     publisher = SftpTargetPublisher(lambda: FakeClient(FakeSftp(), paramiko.AuthenticationException("super-secret")))

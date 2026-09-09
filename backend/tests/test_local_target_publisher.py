@@ -28,6 +28,26 @@ def test_local_target_publishes_directory(tmp_path: Path) -> None:
     assert LocalTargetPublisher().test_connection(target) is True
 
 
+def test_local_target_publishes_single_file_without_wrapper_directory(tmp_path: Path) -> None:
+    source = tmp_path / "src-montage.png"
+    source.write_bytes(b"png")
+    published = tmp_path / "published"
+    target = PublishTarget(
+        id=4, name="local", target_type="local", config={}, content_types=["image"],
+        publish_root=str(published), base_url="https://intranet.example/content/",
+        enabled=True, created_by=1,
+    )
+
+    result = LocalTargetPublisher().publish(
+        PublishArtifact(source, source.name, "image", False), target,
+    )
+
+    assert result.publish_url == "https://intranet.example/content/src-montage.png"
+    assert result.remote_path == str(published / "src-montage.png")
+    assert (published / "src-montage.png").read_bytes() == b"png"
+    assert not (published / "src-montage.png" / "src-montage.png").exists()
+
+
 def test_local_target_relative_root_matches_configured_url_mount(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     mounted_root = tmp_path / "local-data" / "published"
     monkeypatch.setattr(paths, "PROJECT_ROOT", tmp_path)

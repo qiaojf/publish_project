@@ -36,6 +36,23 @@ def test_onedrive_packages_directory_and_returns_web_url(tmp_path: Path, monkeyp
     assert result.remote_path == "/Company/Published/41-document.zip"
 
 
+def test_onedrive_single_file_keeps_original_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PUBLISH_CREDENTIAL_ONEDRIVE_COMPANY_CLIENT_SECRET", "secret")
+    source = tmp_path / "report.pdf"
+    source.write_bytes(b"pdf")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "login.microsoftonline.com": return httpx.Response(200, json={"access_token": "access"})
+        if request.method == "PUT": return httpx.Response(201, json={"id": "item", "webUrl": "https://onedrive.example/report"})
+        return httpx.Response(200, json={"id": "drive"})
+
+    result = OneDriveTargetPublisher(httpx.MockTransport(handler)).publish(
+        PublishArtifact(source, source.name, "pdf", False), make_target(),
+    )
+
+    assert result.remote_path == "/Company/Published/report.pdf"
+
+
 def test_onedrive_large_file_uses_upload_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PUBLISH_CREDENTIAL_ONEDRIVE_COMPANY_CLIENT_SECRET", "secret")
     calls: list[str] = []

@@ -13,6 +13,7 @@ class PublishArtifact:
     entry_file: str | None
     content_type: str
     is_directory: bool
+    source_files: tuple[tuple[Path, str], ...] | None = None
 
     @property
     def generated_path(self) -> str:

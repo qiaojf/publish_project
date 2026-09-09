@@ -17,7 +17,7 @@ from app.core.exceptions import (
 from app.db.models.publish_target import PublishTarget
 from app.services.credential_service import CredentialService
 from app.target_publishers.base import BaseTargetPublisher, PublishArtifact, TargetCapability, TargetPublishResult
-from app.utils.paths import build_view_url
+from app.utils.paths import build_file_url, build_view_url
 
 
 class SftpTargetPublisher(BaseTargetPublisher):
@@ -116,13 +116,18 @@ class SftpTargetPublisher(BaseTargetPublisher):
     def publish(self, artifact: PublishArtifact, target: PublishTarget) -> TargetPublishResult:
         client, sftp = self._connect(target)
         config = target.config or {}
-        remote_dir = posixpath.join(str(config["remote_root"]).rstrip("/"), artifact.generated_path)
+        remote_root = str(config["remote_root"]).rstrip("/")
+        remote_path = posixpath.join(remote_root, artifact.generated_path)
         try:
-            self._ensure_directory(sftp, remote_dir)
-            for local_file, relative in self.artifact_files(artifact):
-                remote_file = posixpath.join(remote_dir, relative)
-                self._ensure_directory(sftp, posixpath.dirname(remote_file))
-                sftp.put(str(local_file), remote_file, confirm=True)
+            if artifact.is_directory:
+                self._ensure_directory(sftp, remote_path)
+                for local_file, relative in self.artifact_files(artifact):
+                    remote_file = posixpath.join(remote_path, relative)
+                    self._ensure_directory(sftp, posixpath.dirname(remote_file))
+                    sftp.put(str(local_file), remote_file, confirm=True)
+            else:
+                self._ensure_directory(sftp, remote_root)
+                sftp.put(str(artifact.local_path), remote_path, confirm=True)
         except PermissionError as exc:
             raise PublishPermissionError("SFTP 远程目录没有写入权限") from exc
         except (socket.timeout, TimeoutError) as exc:
@@ -132,8 +137,12 @@ class SftpTargetPublisher(BaseTargetPublisher):
         finally:
             sftp.close()
             client.close()
-        publish_url = build_view_url(str(config["base_url"]), artifact.generated_path)
-        return TargetPublishResult(True, publish_url, remote_dir, "SFTP 发布成功")
+        publish_url = (
+            build_view_url(str(config["base_url"]), artifact.generated_path)
+            if artifact.is_directory
+            else build_file_url(str(config["base_url"]), artifact.local_path.name)
+        )
+        return TargetPublishResult(True, publish_url, remote_path, "SFTP 发布成功")
 
     def test_connection(self, target: PublishTarget) -> bool:
         client, sftp = self._connect(target)

@@ -10,14 +10,21 @@ from app.utils.paths import safe_child
 
 class HtmlContentProcessor(BaseContentProcessor):
     def process(self, content: Content) -> PublishArtifact:
-        output = self.prepare_output(content)
         body = content.content_body if content.content_body and content.content_body.strip().lower() != "null" else None
+        repository_files: tuple[tuple[Path, str], ...] | None = None
         if body:
+            output = self.prepare_output(content)
             safe_child(output, "index.html").write_text(body, encoding="utf-8")
         else:
             sources = self.source_files(content)
             if not sources:
                 raise PublishError("HTML 内容或源文件不存在")
+            if len(sources) == 1 and not content.source_is_directory:
+                source, relative = sources[0]
+                file_name = PurePosixPath(relative).name
+                return PublishArtifact(source, file_name, content.content_type, False, ((source, file_name),))
+            output = self.prepare_output(content)
+            repository_files = tuple(sources)
             for source, relative in sources:
                 destination = safe_child(output, *PurePosixPath(relative).parts)
                 destination.parent.mkdir(parents=True, exist_ok=True)
@@ -27,4 +34,4 @@ class HtmlContentProcessor(BaseContentProcessor):
                 if len(html_files) != 1:
                     raise PublishError("HTML 文件夹必须包含 index.html")
                 shutil.copy2(safe_child(output, *PurePosixPath(html_files[0]).parts), safe_child(output, "index.html"))
-        return PublishArtifact(output, "index.html", content.content_type, True)
+        return PublishArtifact(output, "index.html", content.content_type, True, repository_files)

@@ -93,6 +93,9 @@ function load(): Database {
   const saved = localStorage.getItem(DB_KEY)
   if (!saved) {
     const db = initialDatabase()
+    db.contents.forEach((content) => {
+      content.creator_department = db.users.find((user) => user.id === content.created_by)?.department || null
+    })
     save(db)
     return db
   }
@@ -112,6 +115,10 @@ function load(): Database {
       migrated = true
     }
     db.users.forEach((user) => { if (user.department === undefined) { user.department = null; migrated = true } })
+    db.contents.forEach((content) => {
+      const department = db.users.find((user) => user.id === content.created_by)?.department || null
+      if (content.creator_department !== department) { content.creator_department = department; migrated = true }
+    })
     db.categories.forEach((category) => {
       if (category.visibility_scope === undefined) { category.visibility_scope = 'all'; migrated = true }
       if (category.department === undefined) { category.department = null; migrated = true }
@@ -297,7 +304,7 @@ export const mockDb = {
     await wait(360); const db = load(); const user = activeUser(db)
     requireEnabledCategory(db, payload.category)
     const selected = payload.files || []
-    const item: ContentItem = { id: nextId(db.contents), title: payload.title, description: payload.description, category: payload.category, content_type: payload.content_type, content_body: payload.content_body, file_name: selected.length === 1 ? selected[0].file.name : payload.file_name, file_size: selected.reduce((total, entry) => total + entry.file.size, 0) || payload.file_size, files: selected.map((entry) => ({ name: entry.file.name, relative_path: entry.relative_path, size: entry.file.size })), source_is_directory: selected.length > 1 || selected.some((entry) => entry.relative_path.includes('/')), created_by: user.id, creator_name: user.name, created_at: now(), updated_at: now(), review_status: 'draft', publish_status: 'unpublished', publish_target_id: payload.publish_target_id, publish_target_name: targetName(db, payload.publish_target_id) }
+    const item: ContentItem = { id: nextId(db.contents), title: payload.title, description: payload.description, category: payload.category, content_type: payload.content_type, content_body: payload.content_body, file_name: selected.length === 1 ? selected[0].file.name : payload.file_name, file_size: selected.reduce((total, entry) => total + entry.file.size, 0) || payload.file_size, files: selected.map((entry) => ({ name: entry.file.name, relative_path: entry.relative_path, size: entry.file.size })), source_is_directory: selected.length > 1 || selected.some((entry) => entry.relative_path.includes('/')), created_by: user.id, creator_name: user.name, creator_department: user.department, created_at: now(), updated_at: now(), review_status: 'draft', publish_status: 'unpublished', publish_target_id: payload.publish_target_id, publish_target_name: targetName(db, payload.publish_target_id) }
     db.contents.unshift(item); recordOperation(db, '新建内容', `内容 #${item.id}`, `新建《${item.title}》`); save(db); return item
   },
   async updateContent(id: number, payload: ContentPayload) {
@@ -382,7 +389,7 @@ export const mockDb = {
   async approve(id: number, comment = '审核通过') { await wait(650); const db = load(); requireAdmin(db); const item = findContent(db, id); if (item.review_status !== 'pending') throw new Error('该内容当前不在待审核状态'); const operator = activeUser(db); item.review_status = 'approved'; db.reviews.unshift({ id: nextId(db.reviews), content_id: id, action: 'approve', from_status: 'pending', to_status: 'approved', operated_by: operator.id, operator_name: operator.name, comment, created_at: now() }); recordOperation(db, '审核通过', `内容 #${id}`, `通过《${item.title}》并触发发布`); return publish(db, item, '审核通过自动发布') },
   async reject(id: number, comment: string) { await wait(380); const db = load(); requireAdmin(db); const item = findContent(db, id); if (item.review_status !== 'pending') throw new Error('该内容当前不在待审核状态'); const operator = activeUser(db); item.review_status = 'rejected'; item.publish_status = 'unpublished'; item.reject_reason = comment; item.updated_at = now(); db.reviews.unshift({ id: nextId(db.reviews), content_id: id, action: 'reject', from_status: 'pending', to_status: 'rejected', operated_by: operator.id, operator_name: operator.name, comment, created_at: now() }); recordOperation(db, '审核驳回', `内容 #${id}`, `驳回《${item.title}》`); save(db); return item },
 
-  async search(query: ContentQuery & { date_from?: string; date_to?: string }) { await wait(320); const db = load(); const user = activeUser(db); let items = db.contents.filter((item) => item.publish_status === 'published' && canViewPublished(db, item, user)); if (query.keyword) items = items.filter((item) => `${item.title}${item.description}`.toLowerCase().includes(query.keyword!.toLowerCase())); if (query.content_type) items = items.filter((item) => item.content_type === query.content_type); if (query.category) items = items.filter((item) => item.category === query.category); if (query.date_from || query.date_to) items = items.filter((item) => dateInRange(item.published_at || '', query.date_from, query.date_to)); return paginate(items.sort((a, b) => (b.published_at || '').localeCompare(a.published_at || '')), query.page, query.page_size) },
+  async search(query: ContentQuery & { publish_target_id?: number | ''; department?: string; date_from?: string; date_to?: string }) { await wait(320); const db = load(); const user = activeUser(db); let items = db.contents.filter((item) => item.publish_status === 'published' && canViewPublished(db, item, user)); if (query.keyword) items = items.filter((item) => `${item.title}${item.description}`.toLowerCase().includes(query.keyword!.toLowerCase())); if (query.content_type) items = items.filter((item) => item.content_type === query.content_type); if (query.category) items = items.filter((item) => item.category === query.category); if (query.publish_target_id) items = items.filter((item) => item.publish_target_id === query.publish_target_id); if (query.department) items = items.filter((item) => item.creator_department?.toLowerCase() === query.department!.trim().toLowerCase()); if (query.date_from || query.date_to) items = items.filter((item) => dateInRange(item.published_at || '', query.date_from, query.date_to)); return paginate(items.sort((a, b) => (b.published_at || '').localeCompare(a.published_at || '')), query.page, query.page_size) },
   async getOperationLogs(query: OperationLogQuery) { await wait(); const db = load(); requireAdmin(db); let items = db.operationLogs.map((item) => ({ ...item, object: readableOperationObject(db, item.object) })); if (query.user_id) items = items.filter((item) => item.user_id === query.user_id); if (query.action) items = items.filter((item) => item.action === query.action); if (query.date_from || query.date_to) items = items.filter((item) => dateInRange(item.created_at, query.date_from, query.date_to)); return paginate(items, query.page, query.page_size) },
   async getPublishLogs(query: PublishLogQuery) { await wait(); const db = load(); requireAdmin(db); let items = [...db.publishLogs]; if (query.keyword) items = items.filter((item) => item.content_title.toLowerCase().includes(query.keyword!.toLowerCase())); if (query.content_type) items = items.filter((item) => item.content_type === query.content_type); if (query.status) items = items.filter((item) => item.status === query.status); if (query.date_from || query.date_to) items = items.filter((item) => dateInRange(item.created_at, query.date_from, query.date_to)); return paginate(items, query.page, query.page_size) },
   async dashboard(): Promise<DashboardData> { await wait(300); const db = load(); const user = activeUser(db); const items = user.role === 'admin' ? db.contents : db.contents.filter((item) => item.created_by === user.id); return { ...(user.role === 'admin' ? { content_total: items.length, publish_failed: items.filter((item) => item.publish_status === 'failed').length } : { my_content_total: items.length, rejected: items.filter((item) => item.review_status === 'rejected').length }), pending_review: items.filter((item) => item.review_status === 'pending').length, published: items.filter((item) => item.publish_status === 'published').length, recent_submissions: [...items].sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 5), recent_publishes: items.filter((item) => item.publish_status === 'published').sort((a, b) => (b.published_at || '').localeCompare(a.published_at || '')).slice(0, 5) } },
@@ -395,7 +402,10 @@ function publish(db: Database, item: ContentItem, action: string) {
   if (!target?.enabled) throw new Error('发布目标不可用，请检查发布配置')
   item.review_status = 'approved'; item.publish_status = 'published'; item.published_at = now(); item.updated_at = now(); item.failure_reason = undefined
   const slug = `${item.id}-${item.content_type}`
-  item.view_url = `${target.base_url || 'https://internal.example.com/content/'}${slug}/`
+  const sourceFileName = item.files?.length === 1 ? item.files[0].name : item.file_name
+  const isSingleFile = Boolean(sourceFileName && !item.source_is_directory && (item.files?.length || 1) === 1)
+  const publishedPath = isSingleFile ? encodeURIComponent(sourceFileName!) : `${slug}/`
+  item.view_url = `${(target.base_url || 'https://internal.example.com/content/').replace(/\/+$/, '')}/${publishedPath}`
   db.publishLogs.unshift({ id: nextId(db.publishLogs), created_at: now(), content_id: item.id, content_title: item.title, content_type: item.content_type, target_name: target.name, status: 'success', view_url: item.view_url })
   recordOperation(db, action, `内容 #${item.id}`, `${action}《${item.title}》`); save(db); return { ...item }
 }

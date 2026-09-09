@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import quote
 
 from app.core.config import PROJECT_ROOT
 from app.core.exceptions import PublishError
@@ -21,3 +22,9 @@ def resolve_publish_root(value: str) -> Path:
 def build_view_url(base_url: str, relative_path: str) -> str:
     normalized = relative_path.replace("\\", "/").strip("/")
     return f"{base_url.rstrip('/')}/{normalized}/"
+
+
+def build_file_url(base_url: str, relative_path: str) -> str:
+    normalized = relative_path.replace("\\", "/").strip("/")
+    encoded = "/".join(quote(part, safe="") for part in normalized.split("/") if part)
+    return f"{base_url.rstrip('/')}/{encoded}"

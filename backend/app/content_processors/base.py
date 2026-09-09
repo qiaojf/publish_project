@@ -64,6 +64,10 @@ class AssetPageContentProcessor(BaseContentProcessor):
         sources = self.source_files(content)
         if not sources:
             raise PublishError("源文件不存在，无法发布")
+        if len(sources) == 1 and not content.source_is_directory:
+            source, relative = sources[0]
+            file_name = PurePosixPath(relative).name
+            return PublishArtifact(source, file_name, content.content_type, False, ((source, file_name),))
         output = self.prepare_output(content)
         files_root = safe_child(output, "files")
         files_root.mkdir(parents=True, exist_ok=True)
@@ -87,4 +91,4 @@ class AssetPageContentProcessor(BaseContentProcessor):
 <title>{html.escape(content.title)}</title><style>body{{font-family:system-ui,sans-serif;max-width:1080px;margin:48px auto;padding:0 24px;color:#172033}}p{{color:#667085;line-height:1.8}}ul{{padding:0;list-style:none}}li{{border-bottom:1px solid #e5e7eb}}a{{display:block;padding:12px 0;color:#315b8a;text-decoration:none}}object,img{{width:100%;min-height:70vh;border:1px solid #dce1e8;object-fit:contain}}</style></head>
 <body><h1>{html.escape(content.title)}</h1><p>{html.escape(content.description or self.description)}</p><h2>{html.escape(self.heading)}</h2><ul>{safe_links}</ul>{embedded}</body></html>"""
         safe_child(output, "index.html").write_text(page, encoding="utf-8")
-        return PublishArtifact(output, "index.html", content.content_type, True)
+        return PublishArtifact(output, "index.html", content.content_type, True, tuple(sources))

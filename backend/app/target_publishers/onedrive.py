@@ -53,7 +53,7 @@ class OneDriveTargetPublisher(BaseTargetPublisher, RemoteHttpPublisher):
     @staticmethod
     def _remote_path(artifact: PublishArtifact, target: PublishTarget, source: Path) -> str:
         folder = str((target.config or {})["folder_path"]).replace("\\", "/").strip("/")
-        file_name = f"{artifact.generated_path}.zip" if artifact.is_directory else f"{artifact.generated_path}-{source.name}"
+        file_name = f"{artifact.generated_path}.zip" if artifact.is_directory else source.name
         return "/".join(part for part in (folder, file_name) if part)
 
     def _upload_large(

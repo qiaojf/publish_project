@@ -21,8 +21,9 @@ def make_target(target_type: str = "github") -> PublishTarget:
     )
 
 
-def make_transport(state: dict[str, int] | None = None) -> httpx.MockTransport:
-    counters = state if state is not None else {}
+def make_transport(state: dict[str, object] | None = None) -> httpx.MockTransport:
+    captured = state if state is not None else {}
+    counters: dict[str, int] = {}
 
     def handler(request: httpx.Request) -> httpx.Response:
         path = request.url.path
@@ -42,10 +43,11 @@ def make_transport(state: dict[str, int] | None = None) -> httpx.MockTransport:
         if request.method == "GET" and path.endswith("/git/commits/head"):
             return httpx.Response(200, json={"tree": {"sha": "base-tree"}})
         if request.method == "GET" and path.endswith("/git/trees/base-tree"):
-            return httpx.Response(200, json={"tree": []})
+            return httpx.Response(200, json={"tree": captured.get("existing_tree", [])})
         if request.method == "POST" and path.endswith("/git/blobs"):
             return httpx.Response(201, json={"sha": f"blob-{counters[path]}"})
         if request.method == "POST" and path.endswith("/git/trees"):
+            captured["tree_payload"] = json.loads(request.content)
             return httpx.Response(201, json={"sha": "new-tree"})
         if request.method == "POST" and path.endswith("/git/commits"):
             return httpx.Response(201, json={"sha": "new-commit"})
@@ -60,15 +62,48 @@ def make_artifact(tmp_path: Path, content_type: str = "file") -> PublishArtifact
     root = tmp_path / "31-demo"
     root.mkdir()
     (root / "index.html").write_text("demo", encoding="utf-8")
-    return PublishArtifact(root, "index.html", content_type, True)
+    source = tmp_path / "demo.txt"
+    source.write_text("demo", encoding="utf-8")
+    return PublishArtifact(root, "index.html", content_type, True, ((source, "demo.txt"),))
 
 
 def test_github_target_commits_artifact_once(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PUBLISH_CREDENTIAL_GITHUB_COMPANY_TOKEN", "not-logged")
-    result = GitHubTargetPublisher(make_transport()).publish(make_artifact(tmp_path), make_target())
+    state: dict[str, object] = {
+        "existing_tree": [{"path": "published/keep.txt", "type": "blob", "sha": "keep"}],
+    }
+    result = GitHubTargetPublisher(make_transport(state)).publish(make_artifact(tmp_path), make_target())
     assert result.external_id == "new-commit"
-    assert result.publish_url == "https://github.com/company/content/tree/main/published/31-demo"
-    assert result.remote_path == "company/content:main/published/31-demo"
+    assert result.publish_url == "https://github.com/company/content/blob/main/published/demo.txt"
+    assert result.remote_path == "company/content:main/published/demo.txt"
+    tree_payload = state["tree_payload"]
+    assert isinstance(tree_payload, dict)
+    assert [item["path"] for item in tree_payload["tree"]] == ["published/demo.txt"]
+
+
+def test_github_target_preserves_uploaded_folder_paths_without_wrapper(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("PUBLISH_CREDENTIAL_GITHUB_COMPANY_TOKEN", "not-logged")
+    source_a = tmp_path / "proposal.pdf"
+    source_b = tmp_path / "appendix.docx"
+    source_a.write_bytes(b"pdf")
+    source_b.write_bytes(b"word")
+    build = tmp_path / "99-generated-wrapper"
+    build.mkdir()
+    (build / "index.html").write_text("must not upload", encoding="utf-8")
+    artifact = PublishArtifact(
+        build, "index.html", "file", True,
+        ((source_a, "proposal.pdf"), (source_b, "attachments/appendix.docx")),
+    )
+    state: dict[str, object] = {}
+    result = GitHubTargetPublisher(make_transport(state)).publish(artifact, make_target())
+    tree_payload = state["tree_payload"]
+    assert isinstance(tree_payload, dict)
+    tree_paths = [item["path"] for item in tree_payload["tree"]]
+    assert tree_paths == ["published/proposal.pdf", "published/attachments/appendix.docx"]
+    assert all("99-generated-wrapper" not in path and not path.endswith("index.html") for path in tree_paths)
+    assert result.publish_url == "https://github.com/company/content/tree/main/published"
 
 
 def test_github_target_uses_lfs_for_oversized_file(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

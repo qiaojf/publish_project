@@ -37,6 +37,19 @@ def test_dropbox_packages_directory_and_uploads(tmp_path: Path, monkeypatch: pyt
     assert result.publish_url == "https://www.dropbox.com/home/Company/Published?preview=51-bundle.zip"
 
 
+def test_dropbox_single_file_keeps_original_name(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("PUBLISH_CREDENTIAL_DROPBOX_COMPANY_TOKEN", "token")
+    source = tmp_path / "report.pdf"
+    source.write_bytes(b"pdf")
+
+    result = DropboxTargetPublisher(
+        httpx.MockTransport(lambda _request: httpx.Response(200, json={"id": "dropbox-item"})),
+    ).publish(PublishArtifact(source, source.name, "pdf", False), make_target())
+
+    assert result.remote_path == "/Company/Published/report.pdf"
+    assert result.publish_url == "https://www.dropbox.com/home/Company/Published?preview=report.pdf"
+
+
 def test_dropbox_large_file_uses_upload_session(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("PUBLISH_CREDENTIAL_DROPBOX_COMPANY_TOKEN", "token")
     requests: list[str] = []

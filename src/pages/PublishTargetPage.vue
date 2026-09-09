@@ -61,7 +61,7 @@ const TARGET_CONTENT_TYPES: Record<PublishTargetType, ContentType[]> = {
 const TARGET_TYPE_HINTS: Record<PublishTargetType, string> = {
   local: '公司服务器可按部门或用途建发布区，所有内容类型均可自由组合。',
   sftp: '远程公司服务器支持所有内容类型自由组合。',
-  github: 'GitHub Repository 支持所有类型；超过 100 MiB 的单文件使用 Git LFS。',
+  github: 'GitHub Repository 将原始文件直接上传到仓库目录，不创建内容文件夹或 index.html；超过 100 MiB 的单文件使用 Git LFS。',
   github_pages: 'GitHub Pages 是静态站点，仅排除依赖后端运行的动态页面，且不支持 Git LFS。',
   onedrive: 'OneDrive 支持所有文件类型；大文件由上传会话分块传输。',
   dropbox: 'Dropbox 支持所有文件类型；超过 150 MiB 使用上传会话分块传输。'

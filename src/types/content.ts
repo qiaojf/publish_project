@@ -28,6 +28,7 @@ export interface ContentItem {
   content_body?: string | null
   created_by: number
   creator_name: string
+  creator_department?: string | null
   created_at: string
   updated_at: string
   submitted_at?: string | null

@@ -18,11 +18,14 @@ router = APIRouter(prefix="/search", tags=["Search"])
 def search(
     db: DbSession, current_user: CurrentUser, keyword: str | None = None,
     content_type: ContentType | None = None, category: str | None = None,
+    publish_target_id: Annotated[int | None, Query(gt=0)] = None,
+    department: str | None = None,
     date_from: date | None = None, date_to: date | None = None,
     page: Annotated[int, Query(ge=1)] = 1, page_size: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> ApiResponse[PageResult[ContentRead]]:
     return ApiResponse(data=SearchService.search(
         db, current_user, keyword=keyword, content_type=content_type.value if content_type else None,
-        category=category, date_from=start_of_day(date_from), date_to=end_of_day(date_to),
+        category=category, publish_target_id=publish_target_id, department=department,
+        date_from=start_of_day(date_from), date_to=end_of_day(date_to),
         page=page, page_size=page_size,
     ))

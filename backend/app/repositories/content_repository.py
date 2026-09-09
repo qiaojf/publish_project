@@ -10,6 +10,7 @@ from app.db.models.content import Content
 from app.db.models.category import Category
 from app.db.models.publish_record import PublishRecord
 from app.db.models.review_record import ReviewRecord
+from app.db.models.user import User
 
 
 CONTENT_LOADERS = (
@@ -96,6 +97,7 @@ class ContentRepository:
     @staticmethod
     def search_published(
         db: Session, *, keyword: str | None, content_type: str | None, category: str | None,
+        publish_target_id: int | None, department: str | None,
         date_from: datetime | None, date_to: datetime | None, viewer_id: int | None,
         viewer_department: str | None, page: int, page_size: int,
     ) -> tuple[list[Content], int]:
@@ -121,6 +123,10 @@ class ContentRepository:
             filters.append(Content.content_type == content_type)
         if category:
             filters.append(Content.category == category)
+        if publish_target_id is not None:
+            filters.append(Content.publish_target_id == publish_target_id)
+        if department:
+            filters.append(Content.creator.has(func.lower(User.department) == department.strip().lower()))
         if date_from:
             filters.append(Content.published_at >= date_from)
         if date_to:

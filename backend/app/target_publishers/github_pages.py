@@ -20,7 +20,7 @@ class GitHubPagesTargetPublisher(GitHubTargetPublisher):
     def validate_artifact(self, artifact: PublishArtifact) -> None:
         if artifact.content_type == ContentType.DYNAMIC.value:
             raise PublishTargetConfigurationError("动态页面依赖后端运行，不能发布到 GitHub Pages")
-        if not artifact.entry_file:
+        if artifact.is_directory and not artifact.entry_file:
             raise PublishTargetConfigurationError("GitHub Pages Artifact 缺少 Web 入口文件")
         oversized = next(((relative, local_file.stat().st_size) for local_file, relative in self.artifact_files(artifact) if local_file.stat().st_size > self.regular_blob_limit_bytes), None)
         if oversized:
@@ -30,7 +30,25 @@ class GitHubPagesTargetPublisher(GitHubTargetPublisher):
                 "GitHub Pages 官方不支持 Git LFS，请改用公司服务器、SFTP、OneDrive 或 Dropbox 目标"
             )
 
-    def _publish_url(self, config: dict[str, object], prefix: str) -> str:
+    @staticmethod
+    def _prefix(config: dict[str, object], artifact: PublishArtifact) -> str:
+        repo_path = str(config.get("repo_path") or "").replace("\\", "/").strip("/")
+        if not artifact.is_directory:
+            return repo_path
+        return "/".join(part for part in (repo_path, artifact.generated_path) if part)
+
+    def _files_for_publish(self, artifact: PublishArtifact):
+        return self.artifact_files(artifact)
+
+    def _delete_stale_files(self, artifact: PublishArtifact) -> bool:
+        return artifact.is_directory
+
+    def _publish_url(
+        self, config: dict[str, object], prefix: str, published_paths: tuple[str, ...], artifact: PublishArtifact,
+    ) -> str:
+        if not artifact.is_directory:
+            encoded_file = quote(published_paths[0].strip("/"), safe="/")
+            return f"{str(config['base_url']).rstrip('/')}/{encoded_file}"
         encoded_path = quote(prefix.strip("/"), safe="/")
         return f"{str(config['base_url']).rstrip('/')}/{encoded_path}/"
 

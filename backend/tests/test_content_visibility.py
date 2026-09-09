@@ -2,6 +2,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from app.db.models.content import Content
+from app.db.models.publish_target import PublishTarget
 from tests.conftest import auth_headers
 
 
@@ -147,3 +148,66 @@ def test_unpublished_content_remains_private_to_creator_and_admin(
     assert client.get(f"/api/contents/{content.id}", headers=employee).status_code == 200
     assert client.get(f"/api/contents/{content.id}", headers=admin).status_code == 200
     assert client.get(f"/api/contents/{content.id}", headers=other).status_code == 403
+
+
+def test_search_filters_by_publish_target_and_creator_department(
+    client: TestClient, db: Session, seeded: dict[str, int],
+) -> None:
+    admin = auth_headers(client, "admin", "admin123")
+    second_target = PublishTarget(
+        name="研发发布区",
+        target_type="local",
+        config={},
+        content_types=["ppt"],
+        enabled=True,
+        created_by=seeded["admin"],
+    )
+    db.add(second_target)
+    db.flush()
+    contents = [
+        Content(
+            title="销售部发布内容",
+            category="制度规范",
+            content_type="ppt",
+            created_by=seeded["employee"],
+            publish_target_id=seeded["target"],
+            review_status="approved",
+            publish_status="published",
+        ),
+        Content(
+            title="研发部发布内容",
+            category="制度规范",
+            content_type="ppt",
+            created_by=seeded["employee2"],
+            publish_target_id=second_target.id,
+            review_status="approved",
+            publish_status="published",
+        ),
+    ]
+    db.add_all(contents)
+    db.commit()
+
+    by_target = client.get(
+        "/api/search",
+        params={"publish_target_id": second_target.id},
+        headers=admin,
+    )
+    assert by_target.status_code == 200, by_target.text
+    assert [item["title"] for item in by_target.json()["data"]["items"]] == ["研发部发布内容"]
+
+    by_department = client.get(
+        "/api/search",
+        params={"department": "销售部"},
+        headers=admin,
+    )
+    assert by_department.status_code == 200, by_department.text
+    assert [item["title"] for item in by_department.json()["data"]["items"]] == ["销售部发布内容"]
+    assert by_department.json()["data"]["items"][0]["creator_department"] == "销售部"
+
+    no_match = client.get(
+        "/api/search",
+        params={"publish_target_id": second_target.id, "department": "销售部"},
+        headers=admin,
+    )
+    assert no_match.status_code == 200, no_match.text
+    assert no_match.json()["data"]["total"] == 0
