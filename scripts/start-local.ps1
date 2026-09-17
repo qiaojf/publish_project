@@ -58,7 +58,9 @@ if (-not (Test-Path (Join-Path $projectRoot "node_modules"))) {
 Push-Location $backendRoot
 try {
     & $venvPython -m alembic upgrade head
+    if ($LASTEXITCODE -ne 0) { throw "Database migration failed." }
     & $venvPython scripts\seed.py
+    if ($LASTEXITCODE -ne 0) { throw "Database seed failed." }
 } finally {
     Pop-Location
 }

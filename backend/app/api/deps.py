@@ -27,7 +27,7 @@ def get_current_user(
     if not user:
         raise AuthenticationError("登录用户不存在")
     if user.status != UserStatus.ACTIVE.value:
-        raise PermissionDenied("账号已被禁用")
+        raise PermissionDenied("账号已被禁用", "AUTH_USER_DISABLED")
     return user
 
 

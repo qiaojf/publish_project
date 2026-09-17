@@ -34,7 +34,7 @@ class ReviewService:
     def detail(db: Session, content_id: int) -> ReviewDetailRead:
         content = ContentRepository.get_by_id(db, content_id)
         if not content:
-            raise ResourceNotFound("内容不存在")
+            raise ResourceNotFound("内容不存在", "CONTENT_NOT_FOUND")
         history = ReviewRepository.list_by_content(db, content_id)
         target = PublishTargetAdminRead.model_validate(content.publish_target) if content.publish_target else None
         return ReviewDetailRead(content=content_to_read(content, include_body=True), publish_target=target, history=[review_to_read(item) for item in history])
@@ -43,9 +43,9 @@ class ReviewService:
     def reject(db: Session, content_id: int, comment: str, operator: User) -> ContentRead:
         content = ContentRepository.get_for_update(db, content_id)
         if not content:
-            raise ResourceNotFound("内容不存在")
+            raise ResourceNotFound("内容不存在", "CONTENT_NOT_FOUND")
         if content.review_status != ReviewStatus.PENDING.value:
-            raise BusinessRuleError("仅待审核内容可以驳回")
+            raise BusinessRuleError("仅待审核内容可以驳回", error_code="REVIEW_INVALID_STATUS")
         content.review_status = ReviewStatus.REJECTED.value
         content.publish_status = PublishStatus.UNPUBLISHED.value
         content.reject_reason = comment.strip()
@@ -55,7 +55,7 @@ class ReviewService:
         db.commit()
         updated = ContentRepository.get_by_id(db, content.id)
         if not updated:
-            raise ResourceNotFound("内容不存在")
+            raise ResourceNotFound("内容不存在", "CONTENT_NOT_FOUND")
         return content_to_read(updated, include_body=True)
 
     @staticmethod

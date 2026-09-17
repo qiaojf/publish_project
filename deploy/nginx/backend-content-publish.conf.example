@@ -1,0 +1,45 @@
+# Backend host example
+# Replace 10.20.30.12, 10.20.30.11 and the published directory before use.
+
+server {
+    listen 10.20.30.12:8080;
+    server_name _;
+
+    # Only the frontend reverse proxy may use this gateway.
+    allow 10.20.30.11;
+    deny all;
+
+    client_max_body_size 1100m;
+    client_body_timeout 720s;
+
+    location ^~ /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        # The server-level allow/deny ensures these forwarded values can only
+        # arrive through the configured frontend proxy.
+        proxy_set_header X-Real-IP $http_x_real_ip;
+        proxy_set_header X-Forwarded-For $http_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $http_x_forwarded_proto;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 720s;
+        proxy_read_timeout 720s;
+        proxy_request_buffering off;
+    }
+
+    # URL /local-published/a.pdf maps to
+    # /srv/content-publish/data/published/a.pdf on this backend host.
+    location ^~ /local-published/ {
+        alias /srv/content-publish/data/published/;
+        index index.html;
+        autoindex off;
+        disable_symlinks on;
+        limit_except GET HEAD { deny all; }
+        add_header X-Content-Type-Options nosniff always;
+    }
+
+    location / {
+        return 404;
+    }
+}

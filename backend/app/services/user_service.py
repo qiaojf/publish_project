@@ -21,13 +21,13 @@ class UserService:
     def get(db: Session, user_id: int) -> UserRead:
         user = UserRepository.get_by_id(db, user_id)
         if not user:
-            raise ResourceNotFound("用户不存在")
+            raise ResourceNotFound("用户不存在", "USER_NOT_FOUND")
         return UserRead.model_validate(user)
 
     @staticmethod
     def create(db: Session, payload: UserCreate, operator: User) -> UserRead:
         if UserRepository.get_by_username(db, payload.username, include_deleted=True):
-            raise BusinessRuleError("用户名已存在")
+            raise BusinessRuleError("用户名已存在", error_code="USER_USERNAME_EXISTS")
         department = DepartmentService.require_enabled(db, payload.department)
         user = UserRepository.create(
             db, username=payload.username, name=payload.name,
@@ -44,10 +44,10 @@ class UserService:
     def update(db: Session, user_id: int, payload: UserUpdate, operator: User) -> UserRead:
         user = UserRepository.get_by_id(db, user_id)
         if not user:
-            raise ResourceNotFound("用户不存在")
+            raise ResourceNotFound("用户不存在", "USER_NOT_FOUND")
         duplicate = UserRepository.get_by_username(db, payload.username, include_deleted=True)
         if duplicate and duplicate.id != user_id:
-            raise BusinessRuleError("用户名已存在")
+            raise BusinessRuleError("用户名已存在", error_code="USER_USERNAME_EXISTS")
         department = DepartmentService.require_enabled(db, payload.department)
         user.username = payload.username
         user.name = payload.name
@@ -66,7 +66,7 @@ class UserService:
     def update_status(db: Session, user_id: int, payload: UserStatusUpdate, operator: User) -> UserRead:
         user = UserRepository.get_by_id(db, user_id)
         if not user:
-            raise ResourceNotFound("用户不存在")
+            raise ResourceNotFound("用户不存在", "USER_NOT_FOUND")
         if user.id == operator.id and payload.status.value == "disabled":
             raise BusinessRuleError("不能禁用当前登录账号")
         user.status = payload.status.value
@@ -81,7 +81,7 @@ class UserService:
     def delete(db: Session, user_id: int, operator: User) -> None:
         user = UserRepository.get_by_id(db, user_id)
         if not user:
-            raise ResourceNotFound("用户不存在")
+            raise ResourceNotFound("用户不存在", "USER_NOT_FOUND")
         if user.id == operator.id:
             raise BusinessRuleError("不能删除当前登录账号")
         UserRepository.soft_delete(user)

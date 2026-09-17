@@ -29,7 +29,9 @@ class GitHubTargetPublisher(BaseTargetPublisher, RemoteHttpPublisher):
         if ".." in PurePosixPath(repo_path).parts:
             raise PublishTargetConfigurationError("GitHub repo_path 不安全")
         if not target.credential_ref:
-            raise PublishTargetConfigurationError("GitHub 发布目标缺少 credential_ref")
+            raise PublishTargetConfigurationError(
+                "GitHub 发布目标缺少 credential_ref", "PUBLISH_TARGET_CREDENTIAL_MISSING"
+            )
 
     def validate_artifact(self, artifact: PublishArtifact) -> None:
         return None

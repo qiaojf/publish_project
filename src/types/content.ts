@@ -2,7 +2,7 @@ import type { PageParams } from './api'
 
 export type ReviewStatus = 'draft' | 'pending' | 'approved' | 'rejected'
 export type PublishStatus = 'unpublished' | 'publishing' | 'published' | 'failed'
-export type ContentType = 'html' | 'dynamic' | 'ppt' | 'pdf' | 'word' | 'excel' | 'image' | 'file'
+export type ContentType = 'html' | 'dynamic' | 'ppt' | 'pdf' | 'word' | 'excel' | 'image' | 'video' | 'file'
 
 export interface ContentFile {
   name: string

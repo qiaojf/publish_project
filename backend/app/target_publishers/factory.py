@@ -4,6 +4,7 @@ from app.target_publishers.base import BaseTargetPublisher
 from app.target_publishers.dropbox import DropboxTargetPublisher
 from app.target_publishers.github import GitHubTargetPublisher
 from app.target_publishers.github_pages import GitHubPagesTargetPublisher
+from app.target_publishers.instagram import InstagramTargetPublisher
 from app.target_publishers.local import LocalTargetPublisher
 from app.target_publishers.onedrive import OneDriveTargetPublisher
 from app.target_publishers.sftp import SftpTargetPublisher
@@ -17,6 +18,7 @@ class TargetPublisherFactory:
         PublishTargetType.GITHUB_PAGES: GitHubPagesTargetPublisher,
         PublishTargetType.ONEDRIVE: OneDriveTargetPublisher,
         PublishTargetType.DROPBOX: DropboxTargetPublisher,
+        PublishTargetType.INSTAGRAM: InstagramTargetPublisher,
     }
 
     @classmethod

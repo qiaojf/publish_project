@@ -18,7 +18,7 @@ if TYPE_CHECKING:
 class Content(TimestampMixin, Base):
     __tablename__ = "contents"
     __table_args__ = (
-        CheckConstraint("content_type IN ('html','dynamic','ppt','pdf','word','excel','image','file')", name="content_type_allowed"),
+        CheckConstraint("content_type IN ('html','dynamic','ppt','pdf','word','excel','image','video','file')", name="content_type_allowed"),
         CheckConstraint("review_status IN ('draft','pending','approved','rejected')", name="review_status_allowed"),
         CheckConstraint("publish_status IN ('unpublished','publishing','published','failed')", name="publish_status_allowed"),
         Index("ix_contents_created_by", "created_by"), Index("ix_contents_content_type", "content_type"),

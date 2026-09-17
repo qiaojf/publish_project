@@ -26,7 +26,9 @@ class DropboxTargetPublisher(BaseTargetPublisher, RemoteHttpPublisher):
     def validate_target(self, target: PublishTarget) -> None:
         self.require_config(target, "folder_path")
         if not target.credential_ref:
-            raise PublishTargetConfigurationError("Dropbox 发布目标缺少 credential_ref")
+            raise PublishTargetConfigurationError(
+                "Dropbox 发布目标缺少 credential_ref", "PUBLISH_TARGET_CREDENTIAL_MISSING"
+            )
 
     @staticmethod
     def _reject_dynamic(artifact: PublishArtifact) -> None:

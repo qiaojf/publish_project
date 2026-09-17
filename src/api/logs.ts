@@ -5,7 +5,7 @@ import type { PageResult } from '@/types/api'
 import type { OperationLog, OperationLogQuery, PublishLog, PublishLogQuery } from '@/types/publish'
 
 type BackendOperationLog = Omit<OperationLog, 'object'> & { target: string }
-const operationActionMap: Record<string, string> = {
+const legacyOperationActionMap: Record<string, string> = {
   登录: 'login',
   新建内容: 'create_content',
   编辑内容: 'update_content',
@@ -37,19 +37,25 @@ const operationActionMap: Record<string, string> = {
   测试发布配置: 'test_publish_target',
   删除发布配置: 'delete_publish_target'
 }
-const operationActionLabel = Object.fromEntries(
-  Object.entries(operationActionMap).map(([label, value]) => [value, label])
+const legacyOperationActionLabel = Object.fromEntries(
+  Object.entries(legacyOperationActionMap).map(([label, value]) => [value, label])
 )
 
+function normalizeOperationPage(result: PageResult<OperationLog>): PageResult<OperationLog> {
+  return { ...result, items: result.items.map((item) => ({ ...item, action: legacyOperationActionMap[item.action] || item.action })) }
+}
+
 export const getOperationLogs = async (params: OperationLogQuery): Promise<PageResult<OperationLog>> => {
-  if (useMock) return mockDb.getOperationLogs(params)
-  const backendParams = { ...params, action: params.action ? operationActionMap[params.action] || params.action : undefined }
-  const result = unwrap(await request.get<PageResult<BackendOperationLog>>('/logs/operations', { params: cleanParams(backendParams) }))
+  if (useMock) {
+    const mockParams = { ...params, action: params.action ? legacyOperationActionLabel[params.action] || params.action : undefined }
+    return normalizeOperationPage(await mockDb.getOperationLogs(mockParams))
+  }
+  const result = unwrap(await request.get<PageResult<BackendOperationLog>>('/logs/operations', { params: cleanParams(params) }))
   return {
     ...result,
     items: result.items.map((item) => ({
       ...item,
-      action: operationActionLabel[item.action] || item.action,
+      action: item.action,
       object: item.target
     }))
   }

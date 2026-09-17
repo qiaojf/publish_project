@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Close, Document, FolderOpened, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { FILE_ACCEPT } from '@/constants'
@@ -12,6 +13,7 @@ const props = defineProps<{
   existingFiles?: ContentFile[]
 }>()
 const emit = defineEmits<{ 'update:modelValue': [value: UploadSelection[]] }>()
+const { t } = useI18n()
 const dragging = ref(false)
 const filesInput = ref<HTMLInputElement>()
 const folderInput = ref<HTMLInputElement>()
@@ -35,8 +37,12 @@ function select(fileList?: FileList | null) {
   const files = Array.from(fileList)
   const selections = files.map((file) => ({ file, relative_path: file.webkitRelativePath || file.name }))
   const isBundle = selections.length > 1 || selections.some((item) => item.relative_path.includes('/'))
+  if (props.contentType === 'video' && (files.length !== 1 || isBundle)) {
+    ElMessage.error(t('uploader.videoSingleError'))
+    return
+  }
   if ((!isBundle && !isPrimaryFile(files[0])) || (isBundle && !files.some(isPrimaryFile))) {
-    ElMessage.error(`请选择符合 ${FILE_ACCEPT[props.contentType]} 要求的主文件`)
+    ElMessage.error(t('uploader.primaryFileError', { accept: FILE_ACCEPT[props.contentType] }))
     return
   }
   emit('update:modelValue', selections)
@@ -55,30 +61,30 @@ function clear() { emit('update:modelValue', []) }
   <div class="uploader">
     <div v-if="!shownFiles.length" class="dropzone" :class="{ dragging }" tabindex="0" role="button" @click="filesInput?.click()" @keydown.enter="filesInput?.click()" @dragover.prevent="dragging = true" @dragleave.prevent="dragging = false" @drop.prevent="onDrop">
       <el-icon><UploadFilled /></el-icon>
-      <strong>拖拽文件到此处，或点击选择多个文件</strong>
-      <span>也可使用下方“选择文件夹”保留目录结构</span>
+      <strong>{{ t(contentType === 'video' ? 'uploader.dropVideo' : 'uploader.dropFiles') }}</strong>
+      <span>{{ t(contentType === 'video' ? 'uploader.videoHint' : 'uploader.folderHint') }}</span>
     </div>
     <div v-else class="file-panel">
       <div class="file-summary">
         <span><el-icon><FolderOpened /></el-icon></span>
-        <div><strong>{{ shownFiles.length }} 个文件</strong><small>总计 {{ formatFileSize(totalSize) }}{{ showingExisting ? ' · 已保存文件' : ' · 待上传' }}</small></div>
-        <el-button v-if="!showingExisting" link type="danger" @click="clear">全部移除</el-button>
+        <div><strong>{{ t('uploader.fileCount', { count: shownFiles.length }) }}</strong><small>{{ t('uploader.totalSize', { size: formatFileSize(totalSize) }) }}{{ t(showingExisting ? 'uploader.savedFilesSuffix' : 'uploader.pendingUploadSuffix') }}</small></div>
+        <el-button v-if="!showingExisting" link type="danger" @click="clear">{{ t('uploader.removeAll') }}</el-button>
       </div>
       <ul class="file-list">
         <li v-for="(item, index) in shownFiles" :key="`${item.relative_path}-${index}`">
           <el-icon><Document /></el-icon>
           <span><strong>{{ item.relative_path }}</strong><small>{{ formatFileSize(item.size) }}</small></span>
-          <button v-if="!showingExisting" type="button" aria-label="移除文件" @click="remove(index)"><el-icon><Close /></el-icon></button>
+          <button v-if="!showingExisting" type="button" :aria-label="t('uploader.removeFile')" @click="remove(index)"><el-icon><Close /></el-icon></button>
         </li>
       </ul>
-      <p v-if="showingExisting" class="replace-tip">重新选择文件或文件夹会整体替换当前文件。</p>
+      <p v-if="showingExisting" class="replace-tip">{{ t('uploader.replaceTip') }}</p>
     </div>
     <div class="picker-row">
-      <el-button plain @click="filesInput?.click()">选择文件（可多选）</el-button>
-      <el-button plain @click="folderInput?.click()">选择文件夹</el-button>
-      <span>主文件格式：{{ FILE_ACCEPT[contentType] }}</span>
+      <el-button plain @click="filesInput?.click()">{{ t(contentType === 'video' ? 'uploader.selectVideo' : 'uploader.selectFiles') }}</el-button>
+      <el-button v-if="contentType !== 'video'" plain @click="folderInput?.click()">{{ t('uploader.selectFolder') }}</el-button>
+      <span>{{ t('uploader.primaryFormat', { accept: FILE_ACCEPT[contentType] }) }}</span>
     </div>
-    <input ref="filesInput" hidden type="file" multiple :accept="FILE_ACCEPT[contentType]" @change="onInput" />
+    <input ref="filesInput" hidden type="file" :multiple="contentType !== 'video'" :accept="FILE_ACCEPT[contentType]" @change="onInput" />
     <input ref="folderInput" hidden type="file" multiple @change="onInput" />
   </div>
 </template>

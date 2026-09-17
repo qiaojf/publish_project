@@ -30,27 +30,44 @@ app.add_middleware(
 
 @app.exception_handler(AppError)
 async def app_error_handler(_request: Request, exc: AppError) -> JSONResponse:
-    return JSONResponse(status_code=exc.status_code, content={"success": False, "data": None, "message": exc.message})
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "data": None, "message": exc.message, "error_code": exc.error_code},
+    )
 
 
 @app.exception_handler(HTTPException)
 async def http_error_handler(_request: Request, exc: HTTPException) -> JSONResponse:
     message = exc.detail if isinstance(exc.detail, str) else "请求处理失败"
-    return JSONResponse(status_code=exc.status_code, content={"success": False, "data": None, "message": message}, headers=exc.headers)
+    error_code = "AUTH_UNAUTHORIZED" if exc.status_code == 401 else "AUTH_FORBIDDEN" if exc.status_code == 403 else None
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={"success": False, "data": None, "message": message, "error_code": error_code},
+        headers=exc.headers,
+    )
 
 
 @app.exception_handler(RequestValidationError)
-async def validation_error_handler(_request: Request, exc: RequestValidationError) -> JSONResponse:
+async def validation_error_handler(request: Request, exc: RequestValidationError) -> JSONResponse:
     first = exc.errors()[0] if exc.errors() else None
     message = first.get("msg", "请求参数不正确") if first else "请求参数不正确"
-    return JSONResponse(status_code=422, content={"success": False, "data": None, "message": message})
+    location = first.get("loc", ()) if first else ()
+    error_code = (
+        "REVIEW_COMMENT_REQUIRED"
+        if request.url.path.endswith(("/approve", "/reject")) and "comment" in location
+        else None
+    )
+    return JSONResponse(
+        status_code=422,
+        content={"success": False, "data": None, "message": message, "error_code": error_code},
+    )
 
 
 @app.exception_handler(Exception)
 async def unhandled_error_handler(_request: Request, exc: Exception) -> JSONResponse:
     logger.exception("Unhandled application error", exc_info=exc)
     message = str(exc) if settings.debug else "服务器内部错误"
-    return JSONResponse(status_code=500, content={"success": False, "data": None, "message": message})
+    return JSONResponse(status_code=500, content={"success": False, "data": None, "message": message, "error_code": None})
 
 
 api_prefix = "/api"

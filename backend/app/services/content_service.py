@@ -93,7 +93,7 @@ class ContentService:
     def _get_model(db: Session, content_id: int) -> Content:
         content = ContentRepository.get_by_id(db, content_id)
         if not content:
-            raise ResourceNotFound("内容不存在")
+            raise ResourceNotFound("内容不存在", "CONTENT_NOT_FOUND")
         return content
 
     @staticmethod
@@ -101,9 +101,9 @@ class ContentService:
         if current_user.role == "admin" or content.created_by == current_user.id:
             return
         if content.publish_status != PublishStatus.PUBLISHED.value:
-            raise PermissionDenied("无权查看该内容")
+            raise PermissionDenied("无权查看该内容", "AUTH_FORBIDDEN")
         if not CategoryService.can_view_published(db, content.category, current_user):
-            raise PermissionDenied("无权查看该内容")
+            raise PermissionDenied("无权查看该内容", "AUTH_FORBIDDEN")
 
     @classmethod
     def get(cls, db: Session, content_id: int, current_user: User) -> ContentRead:
@@ -137,6 +137,18 @@ class ContentService:
                     str(item.get("relative_path") or item.get("name") or ""), payload.content_type,
                     enforce_extension=not existing.source_is_directory,
                 )
+        if payload.content_type == ContentType.VIDEO:
+            if uploads:
+                paths = relative_paths or [upload.filename or "" for upload in uploads]
+                is_directory = len(uploads) > 1 or any("/" in path.replace("\\", "/").strip("/") for path in paths)
+                if len(uploads) != 1 or is_directory:
+                    raise InvalidFileError("视频内容必须只上传一个 MP4 或 MOV 文件")
+            elif existing:
+                metadata = ContentService._source_metadata(existing)
+                if existing.source_is_directory or len(metadata) != 1:
+                    raise InvalidFileError("视频内容必须只上传一个 MP4 或 MOV 文件")
+            else:
+                raise InvalidFileError("请上传一个 MP4 或 MOV 视频文件")
         content_body = ContentService._content_body(payload.content_body)
         if not uploads and not has_existing_file and not content_body:
             raise InvalidFileError("请上传内容文件或填写页面内容")
@@ -178,11 +190,11 @@ class ContentService:
     ) -> ContentRead:
         content = cls._get_model(db, content_id)
         if current_user.role != "admin" and content.created_by != current_user.id:
-            raise PermissionDenied("只能编辑自己创建的内容")
+            raise PermissionDenied("只能编辑自己创建的内容", "CONTENT_NOT_OWNER")
         if content.publish_status == PublishStatus.PUBLISHING.value:
-            raise BusinessRuleError("内容正在发布，暂不能编辑")
+            raise BusinessRuleError("内容正在发布，暂不能编辑", error_code="CONTENT_ALREADY_PUBLISHING")
         if current_user.role != "admin" and content.review_status not in {ReviewStatus.DRAFT.value, ReviewStatus.REJECTED.value}:
-            raise BusinessRuleError("当前审核状态不允许编辑")
+            raise BusinessRuleError("当前审核状态不允许编辑", error_code="CONTENT_NOT_EDITABLE")
         cls._validate_payload(db, payload, uploads, relative_paths, content)
         old_path = content.source_file_path
         new_path: str | None = None
@@ -215,7 +227,7 @@ class ContentService:
     def delete(cls, db: Session, content_id: int, current_user: User) -> None:
         content = cls._get_model(db, content_id)
         if current_user.role != "admin" and content.created_by != current_user.id:
-            raise PermissionDenied("只能删除自己创建的内容")
+            raise PermissionDenied("只能删除自己创建的内容", "CONTENT_NOT_OWNER")
         if content.publish_status == PublishStatus.PUBLISHING.value or content.review_status == ReviewStatus.PENDING.value:
             raise BusinessRuleError("当前状态不允许删除")
         if current_user.role != "admin" and content.publish_status == PublishStatus.PUBLISHED.value:
@@ -228,9 +240,9 @@ class ContentService:
     def submit(cls, db: Session, content_id: int, current_user: User) -> ContentRead:
         content = ContentRepository.get_for_update(db, content_id)
         if not content:
-            raise ResourceNotFound("内容不存在")
+            raise ResourceNotFound("内容不存在", "CONTENT_NOT_FOUND")
         if current_user.role != "admin" and content.created_by != current_user.id:
-            raise PermissionDenied("只能提交自己创建的内容")
+            raise PermissionDenied("只能提交自己创建的内容", "CONTENT_NOT_OWNER")
         if content.review_status not in {ReviewStatus.DRAFT.value, ReviewStatus.REJECTED.value}:
             raise BusinessRuleError("仅草稿或已驳回内容可以提交")
         target = PublishTargetRepository.get_by_id(db, content.publish_target_id) if content.publish_target_id else None

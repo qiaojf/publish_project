@@ -139,7 +139,7 @@ pytest --cov=app --cov-report=term-missing
 2. `TEST_DATABASE_URL` 不能与 `DATABASE_URL` 相同。
 3. 测试库不可用时 PostgreSQL 集成测试会明确跳过，单元测试仍会运行。
 
-覆盖范围包括认证与禁用 Token、角色权限、数据库约束、内容状态流转、驳回重提、发布成功/失败、重新发布、目录越界、文件类型与大小、员工字段脱敏、搜索、审计记录、内容处理器和六类发布目标 Adapter。
+覆盖范围包括认证与禁用 Token、角色权限、数据库约束、内容状态流转、驳回重提、发布成功/失败、重新发布、目录越界、文件类型与大小、员工字段脱敏、搜索、审计记录、内容处理器和七类发布目标 Adapter。
 
 ## 8. 用户角色与权限
 
@@ -183,14 +183,14 @@ Content -> ContentProcessorFactory -> PublishArtifact
         -> PublishService -> TargetPublisherFactory -> TargetPublishResult
 ```
 
-- `app/content_processors/`：按 HTML、Dynamic、PPT、PDF、Word、Excel、Image、File 生成与目标无关的 Artifact。
-- `app/target_publishers/`：独立实现 `local`、`sftp`、`github`、`github_pages`、`onedrive`、`dropbox`。
+- `app/content_processors/`：按 HTML、Dynamic、PPT、PDF、Word、Excel、Image、Video、File 生成与目标无关的 Artifact。
+- `app/target_publishers/`：独立实现 `local`、`sftp`、`github`、`github_pages`、`onedrive`、`dropbox`、`instagram`。
 - `PublishService`：只编排处理器和目标 Adapter，统一写入内容状态和 `publish_records`。
 - OneDrive 与 Dropbox 收到目录 Artifact 时由 `ArtifactPackagingService` 自动压缩为 ZIP。
 
 `publish_targets` 的通用字段：
 
-- `target_type`：上述六种固定类型，数据库有 CHECK Constraint。
+- `target_type`：上述七种固定类型，数据库有 CHECK Constraint。
 - `content_types`：允许发布的内容类型。
 - `config`：平台非敏感 JSONB 配置。
 - `credential_ref`：环境变量凭证引用名。
@@ -206,8 +206,11 @@ Content -> ContentProcessorFactory -> PublishArtifact
 | GitHub Pages | GitHub 字段及 `base_url` |
 | OneDrive | `tenant_id`、`client_id`、`drive_id`、`folder_path` |
 | Dropbox | `folder_path` |
+| Instagram | `ig_user_id`、`api_version`、`media_base_url` |
 
 管理员可调用 `POST /api/publish-targets/{id}/test` 测试连接；此操作不发布内容，也不创建 `PublishRecord`。自动测试使用 Mock Transport / Fake SFTP，不会访问真实第三方账号。
+
+Instagram 目标只接受单个 MP4/MOV 视频。它使用 Instagram User access token 调用 `graph.instagram.com`，把标题和简介作为 caption，等待媒体容器处理完成后发布 Reels；`media_base_url` 必须是映射到 `LOCAL_PUBLISHED_ROOT/_instagram` 的公网 HTTPS 地址。完整配置见 [`../docs/INSTAGRAM_PUBLISHING_SETUP.md`](../docs/INSTAGRAM_PUBLISHING_SETUP.md)。
 
 GitHub Pages 目标会校验配置的 Branch 是否与仓库实际的 Pages 发布分支一致。发布时系统在提交文件后继续等待对应 commit 构建完成，只有 Pages 部署成功才记录发布成功并返回访问地址。
 
@@ -229,6 +232,7 @@ PUBLISH_CREDENTIAL_GITHUB_COMPANY_PAGES_TOKEN=...
 PUBLISH_CREDENTIAL_ONEDRIVE_COMPANY_CLIENT_SECRET=...
 PUBLISH_CREDENTIAL_DROPBOX_COMPANY_TOKEN=...
 PUBLISH_CREDENTIAL_SFTP_INTERNAL_PASSWORD=...
+PUBLISH_CREDENTIAL_INSTAGRAM_COMPANY_ACCESS_TOKEN=...
 PUBLISH_CONNECTION_TIMEOUT_SECONDS=30
 PUBLISH_OPERATION_TIMEOUT_SECONDS=600
 ```
@@ -237,7 +241,7 @@ GET API 和日志永远不返回 Secret；普通员工响应只包含目标 `id`
 
 GitHub、OneDrive 和 Dropbox 的 HTTPS 请求使用操作系统证书存储进行 TLS 校验，兼容由公司 Windows 证书策略管理的代理或根证书；系统不会通过关闭证书校验来绕过连接问题。
 
-第三方实现依据官方接口：[GitHub Git Data REST API](https://docs.github.com/en/rest/git)、[GitHub 大文件限制](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github)、[GitHub LFS 与 Pages 限制](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-git-large-file-storage)、[Microsoft Graph 文件上传](https://learn.microsoft.com/en-us/graph/api/driveitem-put-content?view=graph-rest-1.0)、[Dropbox 上传会话](https://developers.dropbox.com/dbx-performance-guide) 与 [Paramiko SFTP](https://docs.paramiko.org/en/stable/api/sftp.html)。
+第三方实现依据官方接口：[GitHub Git Data REST API](https://docs.github.com/en/rest/git)、[GitHub 大文件限制](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-large-files-on-github)、[GitHub LFS 与 Pages 限制](https://docs.github.com/en/repositories/working-with-files/managing-large-files/about-git-large-file-storage)、[Microsoft Graph 文件上传](https://learn.microsoft.com/en-us/graph/api/driveitem-put-content?view=graph-rest-1.0)、[Dropbox 上传会话](https://developers.dropbox.com/dbx-performance-guide)、[Instagram API 内容发布](https://www.postman.com/meta/instagram/documentation/6yqw8pt/instagram-api) 与 [Paramiko SFTP](https://docs.paramiko.org/en/stable/api/sftp.html)。
 
 ## 13. 新增发布平台
 
@@ -261,7 +265,7 @@ backend/
 │  ├─ core/                 # 配置、安全、枚举、异常
 │  ├─ db/models/            # 七张业务表 ORM
 │  ├─ content_processors/   # 内容处理与 Artifact 生成
-│  ├─ target_publishers/    # 六种可插拔目标 Adapter
+│  ├─ target_publishers/    # 七种可插拔目标 Adapter
 │  ├─ publishers/           # 旧内容发布器兼容层
 │  ├─ repositories/         # SQL 查询和持久化
 │  ├─ schemas/              # Pydantic 请求/响应模型
@@ -278,3 +282,7 @@ backend/
 ```
 
 生产部署应由反向代理或对象存储/CDN 提供最终发布文件，并让 `base_url` 指向真实访问地址；不要假设生产发布目录与 Seed 的本地目录相同。
+
+
+
+admin123

@@ -1,32 +1,35 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessageBox } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import { useAppStore } from '@/stores/app'
 import { COMPANY_LOGO_URL, COMPANY_SITE_URL, USER_ROLES } from '@/constants'
+import LanguageSwitcher from '@/components/LanguageSwitcher/LanguageSwitcher.vue'
 import { Bell, Collection, Document, Expand, Files, Fold, House, OfficeBuilding, Reading, Search, Setting, SwitchButton, User } from '@element-plus/icons-vue'
 
 const auth = useAuthStore()
 const app = useAppStore()
 const route = useRoute()
 const router = useRouter()
+const { t } = useI18n()
 const menus = computed(() => [
-  { label: '工作台', path: '/', icon: House },
-  { label: auth.isAdmin ? '内容管理' : '我的内容', path: '/contents', icon: Document },
-  ...(auth.isAdmin ? [{ label: '审核管理', path: '/reviews', icon: Reading }] : []),
-  { label: '内容检索', path: '/search', icon: Search },
+  { labelKey: 'nav.dashboard', path: '/', icon: House },
+  { labelKey: auth.isAdmin ? 'nav.contents' : 'nav.myContents', path: '/contents', icon: Document },
+  ...(auth.isAdmin ? [{ labelKey: 'nav.reviews', path: '/reviews', icon: Reading }] : []),
+  { labelKey: 'nav.search', path: '/search', icon: Search },
   ...(auth.isAdmin ? [
-    { label: '用户管理', path: '/users', icon: User },
-    { label: '部门配置', path: '/settings/departments', icon: OfficeBuilding },
-    { label: '分类配置', path: '/settings/categories', icon: Files },
-    { label: '发布配置', path: '/settings/publish-targets', icon: Setting },
-    { label: '系统日志', path: '/logs', icon: Collection }
+    { labelKey: 'nav.users', path: '/users', icon: User },
+    { labelKey: 'nav.departments', path: '/settings/departments', icon: OfficeBuilding },
+    { labelKey: 'nav.categories', path: '/settings/categories', icon: Files },
+    { labelKey: 'nav.publishTargets', path: '/settings/publish-targets', icon: Setting },
+    { labelKey: 'nav.logs', path: '/logs', icon: Collection }
   ] : [])
 ])
 
 async function handleLogout() {
-  await ElMessageBox.confirm('确认退出当前账号吗？', '退出登录', { confirmButtonText: '退出', cancelButtonText: '取消' })
+  await ElMessageBox.confirm(t('layout.logoutConfirm'), t('nav.logout'), { confirmButtonText: t('common.logout'), cancelButtonText: t('common.cancel') })
   await auth.logout()
   router.replace('/login')
 }
@@ -36,32 +39,33 @@ async function handleLogout() {
   <div class="app-layout">
     <aside class="sidebar" :class="{ collapsed: app.sidebarCollapsed }">
       <div class="brand">
-        <a class="brand-link" :href="COMPANY_SITE_URL" target="_blank" rel="noopener noreferrer" aria-label="Terabox 公司官网">
+        <a class="brand-link" :href="COMPANY_SITE_URL" target="_blank" rel="noopener noreferrer" :aria-label="t('layout.companySite')">
           <img :src="COMPANY_LOGO_URL" alt="Terabox" />
         </a>
       </div>
-      <nav class="nav-list" aria-label="主导航">
+      <nav class="nav-list" :aria-label="t('layout.mainNavigation')">
         <router-link v-for="menu in menus" :key="menu.path" :to="menu.path" class="nav-item" :class="{ active: menu.path === '/' ? route.path === '/' : route.path.startsWith(menu.path) }">
-          <el-icon><component :is="menu.icon" /></el-icon><span v-if="!app.sidebarCollapsed">{{ menu.label }}</span>
+          <el-icon><component :is="menu.icon" /></el-icon><span v-if="!app.sidebarCollapsed">{{ t(menu.labelKey) }}</span>
           <i v-if="menu.path === '/reviews' && !app.sidebarCollapsed" class="pending-dot" />
         </router-link>
       </nav>
       <div class="sidebar-foot">
-        <button class="logout-button" type="button" @click="handleLogout"><el-icon><SwitchButton /></el-icon><span v-if="!app.sidebarCollapsed">退出登录</span></button>
+        <button class="logout-button" type="button" @click="handleLogout"><el-icon><SwitchButton /></el-icon><span v-if="!app.sidebarCollapsed">{{ t('nav.logout') }}</span></button>
       </div>
     </aside>
 
     <div class="workspace">
       <header class="topbar">
-        <button class="collapse-button" type="button" :aria-label="app.sidebarCollapsed ? '展开侧栏' : '收起侧栏'" @click="app.toggleSidebar">
+        <button class="collapse-button" type="button" :aria-label="app.sidebarCollapsed ? t('layout.expandSidebar') : t('layout.collapseSidebar')" @click="app.toggleSidebar">
           <el-icon><Expand v-if="app.sidebarCollapsed" /><Fold v-else /></el-icon>
         </button>
-        <div class="breadcrumb"><span>内容发布台</span><b>/</b><strong>{{ route.meta.title }}</strong></div>
+        <div class="breadcrumb"><span>{{ t('app.shortName') }}</span><b>/</b><strong>{{ t(route.meta.i18nKey || 'app.name') }}</strong></div>
         <div class="topbar-actions">
-          <button class="icon-button" type="button" aria-label="通知"><el-icon><Bell /></el-icon></button>
+          <LanguageSwitcher compact />
+          <button class="icon-button" type="button" :aria-label="t('layout.notifications')"><el-icon><Bell /></el-icon></button>
           <div class="user-chip">
             <span class="avatar">{{ auth.user?.name.slice(0, 1) }}</span>
-            <div><strong>{{ auth.user?.name }}</strong><span>{{ auth.user ? USER_ROLES[auth.user.role] : '' }}</span></div>
+            <div><strong>{{ auth.user?.name }}</strong><span>{{ auth.user ? t(USER_ROLES[auth.user.role]) : '' }}</span></div>
           </div>
         </div>
       </header>

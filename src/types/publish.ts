@@ -1,7 +1,7 @@
 import type { ContentType } from './content'
 import type { PageParams } from './api'
 
-export type PublishTargetType = 'local' | 'sftp' | 'github' | 'github_pages' | 'onedrive' | 'dropbox'
+export type PublishTargetType = 'local' | 'sftp' | 'github' | 'github_pages' | 'onedrive' | 'dropbox' | 'instagram'
 
 export interface PublishTarget {
   id: number

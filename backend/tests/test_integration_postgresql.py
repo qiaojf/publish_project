@@ -17,10 +17,17 @@ pytestmark = pytest.mark.integration
 
 
 def test_authentication_and_role_guards(client: TestClient, db: Session, seeded: dict[str, int]) -> None:
-    assert client.post("/api/auth/login", json={"username": "admin", "password": "wrong"}).status_code == 401
+    invalid = client.post("/api/auth/login", json={"username": "admin", "password": "wrong"})
+    assert invalid.status_code == 401
+    assert invalid.json()["error_code"] == "AUTH_INVALID_CREDENTIALS"
     disabled = client.post("/api/auth/login", json={"username": "disabled", "password": "employee123"})
     assert disabled.status_code == 403
     assert disabled.json()["message"] == "账号已禁用，请联系管理员"
+    assert disabled.json()["error_code"] == "AUTH_USER_DISABLED"
+    admin_headers = auth_headers(client, "admin", "admin123")
+    missing_comment = client.post("/api/reviews/999/reject", json={"comment": ""}, headers=admin_headers)
+    assert missing_comment.status_code == 422
+    assert missing_comment.json()["error_code"] == "REVIEW_COMMENT_REQUIRED"
     employee_headers = auth_headers(client, "employee")
     assert client.get("/api/users", headers=employee_headers).status_code == 403
     assert client.get("/api/reviews", headers=employee_headers).status_code == 403
@@ -42,7 +49,7 @@ def test_database_constraints_and_defaults(db: Session, seeded: dict[str, int]) 
         db.add(User(username="bad-role", password_hash="x", name="Bad", role="superadmin", status="active"))
         db.commit()
     db.rollback()
-    invalid = Content(title="Video", content_type="video", created_by=seeded["employee"])
+    invalid = Content(title="Audio", content_type="audio", created_by=seeded["employee"])
     db.add(invalid)
     with pytest.raises(IntegrityError):
         db.commit()

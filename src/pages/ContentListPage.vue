@@ -1,17 +1,20 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Folder, FolderOpened, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import ContentStatus from '@/components/ContentStatus.vue'
 import { CONTENT_TYPES, PUBLISH_STATUS, REVIEW_STATUS } from '@/constants'
 import { deleteContent, getContents, republishContent, submitContent } from '@/api/contents'
+import { getRequestErrorMessage } from '@/api/request'
 import { getDepartments } from '@/api/departments'
 import { getPublishTargets } from '@/api/publishTargets'
 import { useAuthStore } from '@/stores/auth'
 import { useCategoryStore } from '@/stores/categories'
 import { formatDate } from '@/utils/format'
+import { getAppLocale } from '@/i18n'
 import type { ContentItem, ContentQuery, ContentType, PublishStatus, ReviewStatus } from '@/types/content'
 import type { Department } from '@/types/department'
 import type { PublishTarget } from '@/types/publish'
@@ -38,6 +41,7 @@ interface TargetTreeGroup {
 const auth = useAuthStore()
 const categories = useCategoryStore()
 const router = useRouter()
+const { t } = useI18n()
 const loading = ref(false)
 const total = ref(0)
 const items = ref<ContentItem[]>([])
@@ -70,7 +74,7 @@ const treeItems = computed<ContentTreeRow[]>(() => {
         row: {
           tree_id: `target-${targetKey}`,
           row_kind: 'target',
-          title: configuredName || item.publish_target_name || '未指定发布配置',
+          title: configuredName || item.publish_target_name || t('content.unassignedTarget'),
           content_count: 0,
           children: []
         },
@@ -79,7 +83,7 @@ const treeItems = computed<ContentTreeRow[]>(() => {
       groups.set(targetKey, targetGroup)
     }
 
-    const departmentName = item.creator_department?.trim() || '未设置部门'
+    const departmentName = item.creator_department?.trim() || t('content.departmentUnset')
     const departmentKey = departmentName.toLowerCase()
     let departmentRow = targetGroup.departments.get(departmentKey)
     if (!departmentRow) {
@@ -106,21 +110,21 @@ const treeItems = computed<ContentTreeRow[]>(() => {
     .sort((left, right) => {
       const leftOrder = targetOrder.get(Number(left.key)) ?? Number.MAX_SAFE_INTEGER
       const rightOrder = targetOrder.get(Number(right.key)) ?? Number.MAX_SAFE_INTEGER
-      return leftOrder - rightOrder || left.row.title.localeCompare(right.row.title, 'zh-CN')
+      return leftOrder - rightOrder || left.row.title.localeCompare(right.row.title, getAppLocale())
     })
     .map((group) => {
       group.row.children = [...group.departments.entries()]
         .sort(([leftKey, left], [rightKey, right]) => {
           const leftOrder = departmentOrder.get(leftKey) ?? Number.MAX_SAFE_INTEGER
           const rightOrder = departmentOrder.get(rightKey) ?? Number.MAX_SAFE_INTEGER
-          return leftOrder - rightOrder || left.title.localeCompare(right.title, 'zh-CN')
+          return leftOrder - rightOrder || left.title.localeCompare(right.title, getAppLocale())
         })
         .map(([, row]) => row)
       return group.row
     })
 })
 
-const contentTypeLabel = (value: ContentType) => CONTENT_TYPES[value]
+const contentTypeLabel = (value: ContentType) => t(CONTENT_TYPES[value])
 
 async function load() {
   loading.value = true
@@ -129,7 +133,7 @@ async function load() {
     items.value = result.items
     total.value = result.total
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '内容加载失败')
+    ElMessage.error(getRequestErrorMessage(error, 'content.loadFailed'))
   } finally {
     loading.value = false
   }
@@ -141,7 +145,7 @@ async function loadGroupingOptions() {
     publishTargets.value = targets
     departments.value = departmentItems
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '发布配置或部门加载失败')
+    ElMessage.error(getRequestErrorMessage(error, 'content.groupOptionsLoadFailed'))
   }
 }
 
@@ -153,11 +157,11 @@ function reset() {
 async function remove(item?: ContentItem) {
   if (!item) return
   try {
-    await ElMessageBox.confirm(`删除“${item.title}”后无法恢复，确认继续吗？`, '删除内容', {
-      type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消'
+    await ElMessageBox.confirm(t('content.deleteConfirm', { title: item.title }), t('content.deleteTitle'), {
+      type: 'warning', confirmButtonText: t('common.delete'), cancelButtonText: t('common.cancel')
     })
     await deleteContent(item.id)
-    ElMessage.success('内容已删除')
+    ElMessage.success(t('content.deleted'))
     void load()
   } catch (error) {
     if (error instanceof Error) ElMessage.error(error.message)
@@ -168,21 +172,21 @@ async function submit(item?: ContentItem) {
   if (!item) return
   try {
     await submitContent(item.id)
-    ElMessage.success('已提交发布审核')
+    ElMessage.success(t('content.submitted'))
     void load()
   } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '提交失败')
+    ElMessage.error(getRequestErrorMessage(error, 'content.submitFailed'))
   }
 }
 
 async function republish(item?: ContentItem) {
   if (!item) return
   try {
-    await ElMessageBox.confirm('确认重新执行发布吗？该操作不会重新审核。', '重新发布', {
-      confirmButtonText: '重新发布', cancelButtonText: '取消'
+    await ElMessageBox.confirm(t('content.republishConfirm'), t('content.republish'), {
+      confirmButtonText: t('content.republish'), cancelButtonText: t('common.cancel')
     })
     await republishContent(item.id)
-    ElMessage.success('重新发布成功')
+    ElMessage.success(t('content.republishSucceeded'))
     void load()
   } catch (error) {
     if (error instanceof Error) ElMessage.error(error.message)
@@ -211,7 +215,7 @@ function toggleTreeRow(row: ContentTreeRow) {
 }
 
 onMounted(() => {
-  void categories.load().catch(() => ElMessage.error('分类加载失败'))
+  void categories.load().catch(() => ElMessage.error(t('category.loadFailed')))
   void loadGroupingOptions()
   void load()
 })
@@ -220,50 +224,50 @@ onMounted(() => {
 <template>
   <div class="page-shell">
     <PageHeader
-      :title="auth.isAdmin ? '内容管理' : '我的内容'"
-      :description="auth.isAdmin ? '按发布名称和所属部门展开全平台内容，追踪审核与发布状态。' : '按发布名称和所属部门展开你创建的内容，并跟踪发布结果。'"
-      eyebrow="CONTENT REGISTER"
+      :title="t(auth.isAdmin ? 'nav.contents' : 'nav.myContents')"
+      :description="t(auth.isAdmin ? 'content.adminListDescription' : 'content.employeeListDescription')"
+      :eyebrow="t('kicker.contentRegister')"
     >
-      <template #actions><el-button type="primary" :icon="Plus" @click="router.push('/contents/new')">新建内容</el-button></template>
+      <template #actions><el-button type="primary" :icon="Plus" @click="router.push('/contents/new')">{{ t('content.create') }}</el-button></template>
     </PageHeader>
 
     <section class="paper-card filter-panel">
       <el-form inline :model="query">
-        <el-form-item label="关键词"><el-input v-model="query.keyword" clearable placeholder="标题或简介" @keyup.enter="query.page = 1; load()" /></el-form-item>
-        <el-form-item label="内容类型"><el-select v-model="query.content_type" clearable placeholder="全部类型" style="width:150px"><el-option v-for="(label, value) in CONTENT_TYPES" :key="value" :label="label" :value="value as ContentType" /></el-select></el-form-item>
-        <el-form-item label="分类"><el-select v-model="query.category" clearable placeholder="全部分类" style="width:130px"><el-option v-for="item in categories.activeNames" :key="item" :label="item" :value="item" /></el-select></el-form-item>
-        <el-form-item label="审核状态"><el-select v-model="query.review_status" clearable placeholder="全部" style="width:120px"><el-option v-for="(label, value) in REVIEW_STATUS" :key="value" :label="label" :value="value as ReviewStatus" /></el-select></el-form-item>
-        <el-form-item label="发布状态"><el-select v-model="query.publish_status" clearable placeholder="全部" style="width:120px"><el-option v-for="(label, value) in PUBLISH_STATUS" :key="value" :label="label" :value="value as PublishStatus" /></el-select></el-form-item>
-        <el-form-item><el-button type="primary" :icon="Search" @click="query.page = 1; load()">查询</el-button><el-button :icon="RefreshRight" @click="reset">重置</el-button></el-form-item>
+        <el-form-item :label="t('common.keyword')"><el-input v-model="query.keyword" clearable :placeholder="t('content.titleOrDescription')" @keyup.enter="query.page = 1; load()" /></el-form-item>
+        <el-form-item :label="t('content.contentType')"><el-select v-model="query.content_type" clearable :placeholder="t('common.allTypes')" style="width:150px"><el-option v-for="(label, value) in CONTENT_TYPES" :key="value" :label="t(label)" :value="value as ContentType" /></el-select></el-form-item>
+        <el-form-item :label="t('content.category')"><el-select v-model="query.category" clearable :placeholder="t('common.allCategories')" style="width:130px"><el-option v-for="item in categories.activeNames" :key="item" :label="item" :value="item" /></el-select></el-form-item>
+        <el-form-item :label="t('content.reviewStatus')"><el-select v-model="query.review_status" clearable :placeholder="t('common.all')" style="width:120px"><el-option v-for="(label, value) in REVIEW_STATUS" :key="value" :label="t(label)" :value="value as ReviewStatus" /></el-select></el-form-item>
+        <el-form-item :label="t('content.publishStatus')"><el-select v-model="query.publish_status" clearable :placeholder="t('common.all')" style="width:120px"><el-option v-for="(label, value) in PUBLISH_STATUS" :key="value" :label="t(label)" :value="value as PublishStatus" /></el-select></el-form-item>
+        <el-form-item><el-button type="primary" :icon="Search" @click="query.page = 1; load()">{{ t('common.query') }}</el-button><el-button :icon="RefreshRight" @click="reset">{{ t('common.reset') }}</el-button></el-form-item>
       </el-form>
     </section>
 
     <section class="paper-card table-panel">
-      <div class="table-toolbar"><span class="table-count">共 {{ total }} 条内容</span><span class="muted">发布名称为一级、所属部门为二级、内容为三级；点击名称可展开或收起</span></div>
+      <div class="table-toolbar"><span class="table-count">{{ t('content.totalCount', { count: total }) }}</span><span class="muted">{{ t('content.treeHint') }}</span></div>
       <el-table ref="tableRef" v-loading="loading" :data="treeItems" row-key="tree_id" default-expand-all :indent="24" :tree-props="{ children: 'children' }" :row-class-name="tableRowClassName">
-        <el-table-column label="发布名称 / 所属部门 / 内容标题" min-width="290" show-overflow-tooltip>
+        <el-table-column :label="t('content.treeColumn')" min-width="290" show-overflow-tooltip>
           <template #default="scope">
-            <button v-if="scope.row.row_kind === 'target'" class="tree-toggle target-node" type="button" @click="toggleTreeRow(scope.row)"><el-icon><FolderOpened /></el-icon><strong>{{ scope.row.title }}</strong><el-tag size="small" type="info" effect="plain">当前页 {{ scope.row.content_count || 0 }} 条</el-tag></button>
-            <button v-else-if="scope.row.row_kind === 'department'" class="tree-toggle department-node" type="button" @click="toggleTreeRow(scope.row)"><el-icon><Folder /></el-icon><strong>{{ scope.row.title }}</strong><el-tag size="small" type="info" effect="plain">{{ scope.row.content_count || 0 }} 条</el-tag></button>
+            <button v-if="scope.row.row_kind === 'target'" class="tree-toggle target-node" type="button" @click="toggleTreeRow(scope.row)"><el-icon><FolderOpened /></el-icon><strong>{{ scope.row.title }}</strong><el-tag size="small" type="info" effect="plain">{{ t('content.currentPageCount', { count: scope.row.content_count || 0 }) }}</el-tag></button>
+            <button v-else-if="scope.row.row_kind === 'department'" class="tree-toggle department-node" type="button" @click="toggleTreeRow(scope.row)"><el-icon><Folder /></el-icon><strong>{{ scope.row.title }}</strong><el-tag size="small" type="info" effect="plain">{{ t('content.rowCount', { count: scope.row.content_count || 0 }) }}</el-tag></button>
             <span v-else-if="scope.row.content" class="content-node"><button class="title-link" @click="router.push(`/contents/${scope.row.content.id}`)">{{ scope.row.content.title }}</button><small v-if="scope.row.content.failure_reason" class="row-alert">{{ scope.row.content.failure_reason }}</small></span>
           </template>
         </el-table-column>
-        <el-table-column label="类型" width="130"><template #default="scope"><span v-if="scope.row.content">{{ contentTypeLabel(scope.row.content.content_type) }}</span></template></el-table-column>
-        <el-table-column label="分类" width="105"><template #default="scope">{{ scope.row.content?.category }}</template></el-table-column>
-        <el-table-column v-if="auth.isAdmin" label="创建人" width="100"><template #default="scope">{{ scope.row.content?.creator_name }}</template></el-table-column>
-        <el-table-column label="审核状态" width="100"><template #default="scope"><ContentStatus v-if="scope.row.content" kind="review" :status="scope.row.content.review_status" /></template></el-table-column>
-        <el-table-column label="发布状态" width="100"><template #default="scope"><ContentStatus v-if="scope.row.content" kind="publish" :status="scope.row.content.publish_status" /></template></el-table-column>
-        <el-table-column label="更新时间" width="155"><template #default="scope"><span v-if="scope.row.content">{{ formatDate(scope.row.content.updated_at) }}</span></template></el-table-column>
-        <el-table-column label="操作" width="250" fixed="right">
+        <el-table-column :label="t('common.type')" width="130"><template #default="scope"><span v-if="scope.row.content">{{ contentTypeLabel(scope.row.content.content_type) }}</span></template></el-table-column>
+        <el-table-column :label="t('content.category')" width="105"><template #default="scope">{{ scope.row.content?.category }}</template></el-table-column>
+        <el-table-column v-if="auth.isAdmin" :label="t('content.creator')" width="100"><template #default="scope">{{ scope.row.content?.creator_name }}</template></el-table-column>
+        <el-table-column :label="t('content.reviewStatus')" width="100"><template #default="scope"><ContentStatus v-if="scope.row.content" kind="review" :status="scope.row.content.review_status" /></template></el-table-column>
+        <el-table-column :label="t('content.publishStatus')" width="100"><template #default="scope"><ContentStatus v-if="scope.row.content" kind="publish" :status="scope.row.content.publish_status" /></template></el-table-column>
+        <el-table-column :label="t('common.updatedAt')" width="155"><template #default="scope"><span v-if="scope.row.content">{{ formatDate(scope.row.content.updated_at) }}</span></template></el-table-column>
+        <el-table-column :label="t('common.actions')" width="250" fixed="right">
           <template #default="scope">
             <template v-if="scope.row.content">
-              <el-button link type="primary" @click="router.push(`/contents/${scope.row.content.id}`)">查看</el-button>
-              <el-button v-if="canEdit(scope.row.content)" link type="primary" @click="router.push(`/contents/${scope.row.content.id}/edit`)">编辑</el-button>
-              <el-button v-if="auth.isAdmin && scope.row.content.review_status === 'pending'" link type="warning" @click="router.push(`/reviews/${scope.row.content.id}`)">审核</el-button>
-              <el-button v-if="scope.row.content.publish_status === 'failed' && auth.isAdmin" link type="warning" @click="republish(scope.row.content)">重新发布</el-button>
-              <el-button v-if="scope.row.content.publish_status === 'published' && scope.row.content.view_url" tag="a" :href="scope.row.content.view_url" target="_blank" rel="noopener noreferrer" link type="success">打开页面</el-button>
-              <el-button v-if="canSubmit(scope.row.content)" link type="warning" @click="submit(scope.row.content)">{{ scope.row.content.review_status === 'rejected' ? '重新提交' : '提交发布' }}</el-button>
-              <el-button v-if="canDelete(scope.row.content)" link type="danger" @click="remove(scope.row.content)">删除</el-button>
+              <el-button link type="primary" @click="router.push(`/contents/${scope.row.content.id}`)">{{ t('common.view') }}</el-button>
+              <el-button v-if="canEdit(scope.row.content)" link type="primary" @click="router.push(`/contents/${scope.row.content.id}/edit`)">{{ t('common.edit') }}</el-button>
+              <el-button v-if="auth.isAdmin && scope.row.content.review_status === 'pending'" link type="warning" @click="router.push(`/reviews/${scope.row.content.id}`)">{{ t('common.review') }}</el-button>
+              <el-button v-if="scope.row.content.publish_status === 'failed' && auth.isAdmin" link type="warning" @click="republish(scope.row.content)">{{ t('content.republish') }}</el-button>
+              <el-button v-if="scope.row.content.publish_status === 'published' && scope.row.content.view_url" tag="a" :href="scope.row.content.view_url" target="_blank" rel="noopener noreferrer" link type="success">{{ t('content.openPage') }}</el-button>
+              <el-button v-if="canSubmit(scope.row.content)" link type="warning" @click="submit(scope.row.content)">{{ t(scope.row.content.review_status === 'rejected' ? 'content.resubmit' : 'content.submitPublish') }}</el-button>
+              <el-button v-if="canDelete(scope.row.content)" link type="danger" @click="remove(scope.row.content)">{{ t('common.delete') }}</el-button>
             </template>
           </template>
         </el-table-column>

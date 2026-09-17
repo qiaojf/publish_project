@@ -51,3 +51,25 @@ def test_local_target_accepts_site_relative_base_url() -> None:
         base_url="/local-published/sales/",
     )
     assert payload.base_url == "/local-published/sales/"
+
+
+def test_instagram_target_only_accepts_video_and_normalizes_public_url() -> None:
+    fields = {
+        "name": "公司 Instagram",
+        "target_type": "instagram",
+        "config": {
+            "ig_user_id": "17841400000000000",
+            "api_version": "v23.0",
+            "media_base_url": "https://publish.example.com/local-published/_instagram",
+        },
+        "credential_ref": "instagram_company",
+    }
+    payload = PublishTargetPayload(content_types=["video"], **fields)
+    assert payload.config["media_base_url"] == "https://publish.example.com/local-published/_instagram/"
+    with pytest.raises(ValidationError, match="不支持内容类型"):
+        PublishTargetPayload(content_types=["video", "image"], **fields)
+    with pytest.raises(ValidationError, match="公网 HTTPS"):
+        PublishTargetPayload(
+            content_types=["video"],
+            **{**fields, "config": {**fields["config"], "media_base_url": "http://127.0.0.1/video/"}},
+        )

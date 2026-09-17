@@ -13,6 +13,7 @@ TARGET_CONFIG_FIELDS: dict[PublishTargetType, tuple[str, ...]] = {
     PublishTargetType.GITHUB_PAGES: ("owner", "repo", "branch", "repo_path", "base_url"),
     PublishTargetType.ONEDRIVE: ("tenant_id", "client_id", "drive_id", "folder_path"),
     PublishTargetType.DROPBOX: ("folder_path",),
+    PublishTargetType.INSTAGRAM: ("ig_user_id", "api_version", "media_base_url"),
 }
 
 SECRET_FIELD_MARKERS = ("token", "password", "secret", "private_key", "passphrase")
@@ -94,6 +95,21 @@ class PublishTargetPayload(BaseModel):
             if not 1 <= port <= 65535:
                 raise ValueError("SFTP port 必须在 1 到 65535 之间")
             self.config["port"] = port
+        if self.target_type == PublishTargetType.INSTAGRAM:
+            ig_user_id = str(self.config.get("ig_user_id") or "").strip()
+            api_version = str(self.config.get("api_version") or "").strip()
+            media_base_url = str(self.config.get("media_base_url") or "").strip()
+            if not ig_user_id.isdigit():
+                raise ValueError("Instagram ig_user_id 必须是纯数字账号 ID")
+            if not api_version.startswith("v") or not api_version[1:].replace(".", "", 1).isdigit():
+                raise ValueError("Instagram api_version 格式应类似 v23.0")
+            if not media_base_url.startswith("https://"):
+                raise ValueError("Instagram media_base_url 必须是公网 HTTPS URL")
+            self.config.update({
+                "ig_user_id": ig_user_id,
+                "api_version": api_version,
+                "media_base_url": media_base_url.rstrip("/") + "/",
+            })
         base_url = self.config.get("base_url")
         if base_url and not str(base_url).startswith(("http://", "https://")):
             raise ValueError("base_url 必须是有效的 HTTP(S) URL")

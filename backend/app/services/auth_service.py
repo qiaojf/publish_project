@@ -14,9 +14,9 @@ class AuthService:
     def login(db: Session, username: str, password: str, ip_address: str | None = None) -> LoginResult:
         user = UserRepository.get_by_username(db, username.strip())
         if not user or not verify_password(password, user.password_hash):
-            raise AuthenticationError("用户名或密码错误")
+            raise AuthenticationError("用户名或密码错误", "AUTH_INVALID_CREDENTIALS")
         if user.status != UserStatus.ACTIVE.value:
-            raise PermissionDenied("账号已禁用，请联系管理员")
+            raise PermissionDenied("账号已禁用，请联系管理员", "AUTH_USER_DISABLED")
         OperationLogRepository.create(
             db, user_id=user.id, action="login", target_type="user", target_id=user.id,
             message="登录内容发布平台", ip_address=ip_address,

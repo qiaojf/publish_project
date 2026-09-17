@@ -27,7 +27,7 @@ def validate_upload_name(filename: str, content_type: ContentType) -> str:
     allowed = ALLOWED_EXTENSIONS[content_type]
     if allowed and suffix not in allowed:
         expected = "、".join(sorted(allowed))
-        raise InvalidFileError(f"{content_type.value} 类型仅支持：{expected}")
+        raise InvalidFileError(f"{content_type.value} 类型仅支持：{expected}", "FILE_TYPE_NOT_SUPPORTED")
     return filename
 
 
@@ -88,7 +88,9 @@ async def save_uploads(
                     file_size += len(chunk)
                     total_size += len(chunk)
                     if total_size > max_bytes:
-                        raise InvalidFileError(f"上传文件总大小不能超过 {settings.max_upload_size_mb} MB")
+                        raise InvalidFileError(
+                            f"上传文件总大小不能超过 {settings.max_upload_size_mb} MB", "FILE_TOO_LARGE"
+                        )
                     target.write(chunk)
             if file_size == 0:
                 raise InvalidFileError(f"上传文件不能为空：{relative_path}")

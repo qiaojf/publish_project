@@ -1,11 +1,13 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { useI18n } from 'vue-i18n'
 import { Document } from '@element-plus/icons-vue'
 import { getContentPreviewFile, getContentPreviewSourceFile } from '@/api/contents'
 import { formatFileSize } from '@/utils/format'
 import type { PreviewData } from '@/types/content'
 
 const props = defineProps<{ contentId?: number; preview?: PreviewData; loading?: boolean }>()
+const { t } = useI18n()
 const objectUrl = ref('')
 const sourceLoading = ref(false)
 const sourceError = ref(false)
@@ -67,17 +69,17 @@ onBeforeUnmount(() => { requestVersion += 1; revokeObjectUrl() })
 </script>
 <template>
   <div v-loading="loading || sourceLoading" class="preview-stage">
-    <template v-if="preview?.preview_type === 'url'"><iframe :src="preview.preview_url" title="内容预览" /></template>
-    <template v-else-if="preview?.preview_type === 'image' && displayUrl"><img :src="displayUrl" alt="内容预览" /></template>
-    <template v-else-if="preview?.preview_type === 'pdf' && displayUrl"><iframe :src="displayUrl" title="PDF 文档预览" /></template>
-    <template v-else-if="preview?.preview_type === 'text'"><iframe :srcdoc="preview.content" sandbox="allow-same-origin" title="内容预览" /></template>
-    <div v-else-if="sourceError" class="file-preview"><el-icon><Document /></el-icon><strong>预览文件读取失败</strong><p>请稍后重试，或检查源文件是否仍然存在。</p></div>
+    <template v-if="preview?.preview_type === 'url'"><iframe :src="preview.preview_url" :title="t('preview.contentPreview')" /></template>
+    <template v-else-if="preview?.preview_type === 'image' && displayUrl"><img :src="displayUrl" :alt="t('preview.contentPreview')" /></template>
+    <template v-else-if="preview?.preview_type === 'pdf' && displayUrl"><iframe :src="displayUrl" :title="t('preview.pdfPreview')" /></template>
+    <template v-else-if="preview?.preview_type === 'text'"><iframe :srcdoc="preview.content" sandbox="allow-same-origin" :title="t('preview.contentPreview')" /></template>
+    <div v-else-if="sourceError" class="file-preview"><el-icon><Document /></el-icon><strong>{{ t('preview.loadFailed') }}</strong><p>{{ t('preview.loadFailedHint') }}</p></div>
     <div v-else-if="preview?.preview_type === 'files'" class="multi-file-preview">
-      <div class="multi-file-head"><el-icon><Document /></el-icon><div><strong>{{ preview.files.length }} 个文件</strong><span>多个文件或文件夹不显示内容预览</span></div></div>
-      <ul><li v-for="item in preview.files" :key="item.relative_path"><span><strong>{{ item.relative_path }}</strong><small>{{ formatFileSize(item.size) }}</small></span><el-button v-if="item.download_url" link type="primary" @click="downloadListedFile(item.relative_path, item.name)">下载</el-button></li></ul>
+      <div class="multi-file-head"><el-icon><Document /></el-icon><div><strong>{{ t('uploader.fileCount', { count: preview.files.length }) }}</strong><span>{{ t('preview.multiFileHint') }}</span></div></div>
+      <ul><li v-for="item in preview.files" :key="item.relative_path"><span><strong>{{ item.relative_path }}</strong><small>{{ formatFileSize(item.size) }}</small></span><el-button v-if="item.download_url" link type="primary" @click="downloadListedFile(item.relative_path, item.name)">{{ t('common.download') }}</el-button></li></ul>
     </div>
-    <div v-else-if="preview?.preview_type === 'file'" class="file-preview"><el-icon><Document /></el-icon><strong>{{ preview.file_name }}</strong><span>{{ formatFileSize(preview.file_size) }}</span><p>该文件格式无法在浏览器内还原，下载原始文件可查看完整内容。</p><el-button v-if="preview.preview_url" type="primary" plain @click="downloadSource">下载原始文件</el-button></div>
-    <el-empty v-else description="当前文件暂不支持在线预览" :image-size="78" />
+    <div v-else-if="preview?.preview_type === 'file'" class="file-preview"><el-icon><Document /></el-icon><strong>{{ preview.file_name }}</strong><span>{{ formatFileSize(preview.file_size) }}</span><p>{{ t('preview.unsupportedHint') }}</p><el-button v-if="preview.preview_url" type="primary" plain @click="downloadSource">{{ t('preview.downloadOriginal') }}</el-button></div>
+    <el-empty v-else :description="t('preview.unsupported')" :image-size="78" />
   </div>
 </template>
 <style scoped>

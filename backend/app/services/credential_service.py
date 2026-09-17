@@ -30,10 +30,12 @@ class CredentialService:
     @classmethod
     def get_secret(cls, credential_ref: str | None, key: str) -> str:
         if not credential_ref:
-            raise PublishTargetConfigurationError("发布目标未配置 credential_ref")
+            raise PublishTargetConfigurationError("发布目标未配置 credential_ref", "PUBLISH_TARGET_CREDENTIAL_MISSING")
         value = cls._read_value(credential_ref, key)
         if not value:
-            raise PublishTargetConfigurationError(f"发布目标凭证未配置：{credential_ref}/{key}")
+            raise PublishTargetConfigurationError(
+                f"发布目标凭证未配置：{credential_ref}/{key}", "PUBLISH_TARGET_CREDENTIAL_MISSING"
+            )
         return value
 
     @classmethod

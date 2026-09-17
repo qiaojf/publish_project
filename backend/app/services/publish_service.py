@@ -29,9 +29,9 @@ class PublishService:
     def approve_and_publish(cls, db: Session, content_id: int, operator: User, comment: str) -> ContentRead:
         content = ContentRepository.get_for_update(db, content_id)
         if not content:
-            raise ResourceNotFound("内容不存在")
+            raise ResourceNotFound("内容不存在", "CONTENT_NOT_FOUND")
         if content.review_status != ReviewStatus.PENDING.value:
-            raise BusinessRuleError("该内容当前不在待审核状态")
+            raise BusinessRuleError("该内容当前不在待审核状态", error_code="REVIEW_INVALID_STATUS")
         record = cls._initialize(db, content, operator, action="approve_content", review_action=True, comment=comment)
         return cls._execute(db, record.id)
 
@@ -39,9 +39,9 @@ class PublishService:
     def direct_publish(cls, db: Session, content_id: int, operator: User) -> ContentRead:
         content = ContentRepository.get_for_update(db, content_id)
         if not content:
-            raise ResourceNotFound("内容不存在")
+            raise ResourceNotFound("内容不存在", "CONTENT_NOT_FOUND")
         if content.publish_status == PublishStatus.PUBLISHING.value:
-            raise BusinessRuleError("内容正在发布，请勿重复提交")
+            raise BusinessRuleError("内容正在发布，请勿重复提交", error_code="CONTENT_ALREADY_PUBLISHING")
         record = cls._initialize(db, content, operator, action="publish_content", review_action=True, comment="管理员直接发布")
         return cls._execute(db, record.id)
 
@@ -49,9 +49,9 @@ class PublishService:
     def republish(cls, db: Session, content_id: int, operator: User) -> ContentRead:
         content = ContentRepository.get_for_update(db, content_id)
         if not content:
-            raise ResourceNotFound("内容不存在")
+            raise ResourceNotFound("内容不存在", "CONTENT_NOT_FOUND")
         if content.publish_status == PublishStatus.PUBLISHING.value:
-            raise BusinessRuleError("内容正在发布，请勿重复提交")
+            raise BusinessRuleError("内容正在发布，请勿重复提交", error_code="CONTENT_ALREADY_PUBLISHING")
         if content.review_status != ReviewStatus.APPROVED.value or content.publish_status != PublishStatus.FAILED.value:
             raise BusinessRuleError("仅审核通过且发布失败的内容可以重新发布")
         record = cls._initialize(db, content, operator, action="republish_content", review_action=False, comment=None)
@@ -121,5 +121,5 @@ class PublishService:
             db.commit()
         content = ContentRepository.get_by_id(db, content_id)
         if not content:
-            raise ResourceNotFound("内容不存在")
+            raise ResourceNotFound("内容不存在", "CONTENT_NOT_FOUND")
         return content_to_read(content, include_body=True)

@@ -2,6 +2,7 @@ from pathlib import Path
 
 from app.content_processors.html import HtmlContentProcessor
 from app.content_processors.image import ImageContentProcessor
+from app.content_processors.video import VideoContentProcessor
 from app.core.config import get_settings
 from app.db.models.content import Content
 
@@ -57,6 +58,39 @@ def test_image_processor_keeps_single_uploaded_file_name(tmp_path: Path) -> None
         assert artifact.local_path == source
         assert artifact.is_directory is False
         assert artifact.source_files == ((source, "src-montage.png"),)
+    finally:
+        settings.source_storage_root = original_source
+        settings.build_storage_root = original_build
+
+
+def test_video_processor_keeps_caption_and_single_file(tmp_path: Path) -> None:
+    settings = get_settings()
+    original_source = settings.source_storage_root
+    original_build = settings.build_storage_root
+    try:
+        settings.source_storage_root = (tmp_path / "source").resolve()
+        settings.build_storage_root = (tmp_path / "build").resolve()
+        settings.source_storage_root.mkdir()
+        source = settings.source_storage_root / "launch.mp4"
+        source.write_bytes(b"video")
+        content = Content(
+            id=43,
+            title="新品发布",
+            description="新品功能介绍",
+            content_type="video",
+            source_file_name=source.name,
+            source_file_path=str(source),
+            source_is_directory=False,
+            created_by=1,
+        )
+
+        artifact = VideoContentProcessor().process(content)
+
+        assert artifact.local_path == source
+        assert artifact.entry_file == "launch.mp4"
+        assert artifact.title == "新品发布"
+        assert artifact.description == "新品功能介绍"
+        assert artifact.source_files == ((source, "launch.mp4"),)
     finally:
         settings.source_storage_root = original_source
         settings.build_storage_root = original_build

@@ -32,7 +32,9 @@ class SftpTargetPublisher(BaseTargetPublisher):
         if not remote_root.startswith("/") or ".." in PurePosixPath(remote_root).parts:
             raise PublishTargetConfigurationError("SFTP remote_root 必须是安全的绝对路径")
         if not target.credential_ref:
-            raise PublishTargetConfigurationError("SFTP 发布目标缺少 credential_ref")
+            raise PublishTargetConfigurationError(
+                "SFTP 发布目标缺少 credential_ref", "PUBLISH_TARGET_CREDENTIAL_MISSING"
+            )
 
     @staticmethod
     def _paramiko() -> Any:
@@ -59,7 +61,10 @@ class SftpTargetPublisher(BaseTargetPublisher):
         password = CredentialService.get_optional_secret(target.credential_ref, "password")
         private_key = CredentialService.get_optional_secret(target.credential_ref, "private_key")
         if not password and not private_key:
-            raise PublishTargetConfigurationError(f"发布目标凭证未配置：{target.credential_ref}/password 或 private_key")
+            raise PublishTargetConfigurationError(
+                f"发布目标凭证未配置：{target.credential_ref}/password 或 private_key",
+                "PUBLISH_TARGET_CREDENTIAL_MISSING",
+            )
         client = self.client_factory() if self.client_factory else module.SSHClient()
         settings = get_settings()
         try:

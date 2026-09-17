@@ -54,3 +54,52 @@ def test_multi_file_upload_lists_files_and_publishes_bundle(
     output = next((tmp_path / "published-files").iterdir())
     page = (output / "index.html").read_text(encoding="utf-8")
     assert "资料/readme.txt" in page and "资料/data.csv" in page
+
+
+def test_instagram_video_content_accepts_exactly_one_video(
+    client: TestClient, db: Session, seeded: dict[str, int],
+) -> None:
+    target = PublishTarget(
+        name="公司 Instagram",
+        target_type="instagram",
+        config={
+            "ig_user_id": "17841400000000000",
+            "api_version": "v23.0",
+            "media_base_url": "https://publish.example.com/local-published/_instagram/",
+        },
+        content_types=["video"],
+        credential_ref="instagram_company",
+        enabled=True,
+        created_by=seeded["admin"],
+    )
+    db.add(target)
+    db.commit()
+    employee = auth_headers(client, "employee")
+    data = {
+        "title": "新品视频",
+        "category": "测试",
+        "content_type": "video",
+        "publish_target_id": str(target.id),
+    }
+
+    multiple = client.post(
+        "/api/contents",
+        data={**data, "file_paths": ["part-1.mp4", "part-2.mp4"]},
+        files=[
+            ("files", ("part-1.mp4", b"video-1", "video/mp4")),
+            ("files", ("part-2.mp4", b"video-2", "video/mp4")),
+        ],
+        headers=employee,
+    )
+    assert multiple.status_code == 422
+    assert "MP4 或 MOV" in multiple.json()["message"]
+
+    single = client.post(
+        "/api/contents",
+        data={**data, "file_paths": ["launch.mp4"]},
+        files=[("files", ("launch.mp4", b"video", "video/mp4"))],
+        headers=employee,
+    )
+    assert single.status_code == 201, single.text
+    assert single.json()["data"]["content_type"] == "video"
+    assert single.json()["data"]["files"][0]["relative_path"] == "launch.mp4"

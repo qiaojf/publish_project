@@ -24,7 +24,7 @@ const SESSION_KEY = 'publish-console-mock-session'
 const wait = (ms = 220) => new Promise((resolve) => setTimeout(resolve, ms))
 const now = () => new Date().toISOString()
 const ago = (hours: number) => new Date(Date.now() - hours * 3600_000).toISOString()
-const allContentTypes: ContentType[] = ['html', 'dynamic', 'ppt', 'pdf', 'word', 'excel', 'image', 'file']
+const allContentTypes: ContentType[] = ['html', 'dynamic', 'ppt', 'pdf', 'word', 'excel', 'image', 'video', 'file']
 
 function initialDatabase(): Database {
   return {

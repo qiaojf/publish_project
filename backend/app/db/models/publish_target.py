@@ -17,7 +17,7 @@ class PublishTarget(TimestampMixin, Base):
     __tablename__ = "publish_targets"
     __table_args__ = (
         CheckConstraint(
-            "target_type IN ('local','sftp','github','github_pages','onedrive','dropbox')",
+            "target_type IN ('local','sftp','github','github_pages','onedrive','dropbox','instagram')",
             name="target_type_allowed",
         ),
         Index("ix_publish_targets_enabled", "enabled"),

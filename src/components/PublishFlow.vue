@@ -1,19 +1,21 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useI18n } from 'vue-i18n'
 import type { ContentItem } from '@/types/content'
 const props = defineProps<{ content: ContentItem }>()
+const { t } = useI18n()
 const active = computed(() => {
   if (props.content.publish_status === 'published' || props.content.publish_status === 'failed') return 4
   if (props.content.review_status === 'approved') return 3
   if (props.content.review_status === 'pending' || props.content.review_status === 'rejected') return 2
   return 1
 })
-const labels = ['内容就绪', '提交审核', '审核处理', '自动发布']
+const labels = ['flow.ready', 'flow.submit', 'flow.review', 'flow.publish']
 </script>
 <template>
   <div class="publish-flow">
     <div v-for="(label, index) in labels" :key="label" class="flow-step" :class="{ active: index + 1 <= active, failed: index === 3 && content.publish_status === 'failed' }">
-      <span>{{ index + 1 }}</span><strong>{{ label }}</strong><i v-if="index < labels.length - 1" />
+      <span>{{ index + 1 }}</span><strong>{{ t(label) }}</strong><i v-if="index < labels.length - 1" />
     </div>
   </div>
 </template>

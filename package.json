@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vue-tsc --noEmit -p tsconfig.app.json && vite build --config vite.config.ts",
+    "check:i18n": "node scripts/check-i18n-keys.mjs",
     "preview": "vite preview",
     "lint": "eslint . --ext .vue,.ts --max-warnings=0"
   },
@@ -15,6 +16,7 @@
     "element-plus": "^2.11.0",
     "pinia": "^3.0.3",
     "vue": "^3.5.20",
+    "vue-i18n": "^11.1.12",
     "vue-router": "^4.5.1"
   },
   "devDependencies": {

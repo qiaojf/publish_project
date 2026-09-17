@@ -46,7 +46,7 @@ class PublishTargetService:
     def get_admin(db: Session, target_id: int) -> PublishTargetAdminRead:
         target = PublishTargetRepository.get_by_id(db, target_id)
         if not target:
-            raise ResourceNotFound("发布目标不存在")
+            raise ResourceNotFound("发布目标不存在", "PUBLISH_TARGET_NOT_FOUND")
         return PublishTargetService._admin_read(target)
 
     @staticmethod
@@ -66,7 +66,7 @@ class PublishTargetService:
     def update(db: Session, target_id: int, payload: PublishTargetPayload, operator: User) -> PublishTargetAdminRead:
         target = PublishTargetRepository.get_by_id(db, target_id)
         if not target:
-            raise ResourceNotFound("发布目标不存在")
+            raise ResourceNotFound("发布目标不存在", "PUBLISH_TARGET_NOT_FOUND")
         target.name = payload.name
         target.content_types = [item.value for item in payload.content_types]
         target.target_type = payload.target_type.value
@@ -85,7 +85,7 @@ class PublishTargetService:
     def update_status(db: Session, target_id: int, payload: PublishTargetStatusUpdate, operator: User) -> PublishTargetAdminRead:
         target = PublishTargetRepository.get_by_id(db, target_id)
         if not target:
-            raise ResourceNotFound("发布目标不存在")
+            raise ResourceNotFound("发布目标不存在", "PUBLISH_TARGET_NOT_FOUND")
         target.enabled = payload.enabled
         target.updated_at = utc_now()
         action = "enable_publish_target" if payload.enabled else "disable_publish_target"
@@ -100,7 +100,7 @@ class PublishTargetService:
     ) -> PublishTargetConnectionRead:
         target = PublishTargetRepository.get_by_id(db, target_id)
         if not target:
-            raise ResourceNotFound("发布目标不存在")
+            raise ResourceNotFound("发布目标不存在", "PUBLISH_TARGET_NOT_FOUND")
         connected = TargetPublisherFactory.create(target.target_type).test_connection(target)
         OperationLogRepository.create(
             db, user_id=operator.id, action="test_publish_target", target_type="publish_target",
@@ -113,7 +113,7 @@ class PublishTargetService:
     def delete(db: Session, target_id: int, operator: User) -> None:
         target = PublishTargetRepository.get_by_id(db, target_id)
         if not target:
-            raise ResourceNotFound("发布目标不存在")
+            raise ResourceNotFound("发布目标不存在", "PUBLISH_TARGET_NOT_FOUND")
         if PublishTargetRepository.is_in_use(db, target_id):
             raise BusinessRuleError("该发布目标已被内容使用，请改为禁用")
         OperationLogRepository.create(db, user_id=operator.id, action="delete_publish_target", target_type="publish_target", target_id=target.id, message=f"删除发布目标 {target.name}")
@@ -123,8 +123,8 @@ class PublishTargetService:
     @staticmethod
     def validate_for_content(target: PublishTarget | None, content_type: str) -> None:
         if not target:
-            raise BusinessRuleError("请选择有效的发布目标", 422)
+            raise BusinessRuleError("请选择有效的发布目标", 422, "PUBLISH_TARGET_NOT_FOUND")
         if not target.enabled:
-            raise BusinessRuleError("发布目标已禁用")
+            raise BusinessRuleError("发布目标已禁用", error_code="PUBLISH_TARGET_DISABLED")
         if content_type not in target.content_types:
-            raise BusinessRuleError("内容类型与发布目标不匹配", 422)
+            raise BusinessRuleError("内容类型与发布目标不匹配", 422, "PUBLISH_TARGET_TYPE_MISMATCH")

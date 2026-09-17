@@ -1,0 +1,88 @@
+# Frontend host example
+# Replace publish.example.com, 10.20.30.0/24 and 10.20.30.12 before use.
+
+upstream content_publish_backend_gateway {
+    server 10.20.30.12:8080 max_fails=3 fail_timeout=10s;
+    keepalive 16;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name publish.example.com;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl http2;
+    listen [::]:443 ssl http2;
+    server_name publish.example.com;
+
+    ssl_certificate     /etc/pki/tls/certs/publish.example.com.fullchain.pem;
+    ssl_certificate_key /etc/pki/tls/private/publish.example.com.key;
+
+    root /usr/share/nginx/html/content-publish;
+    index index.html;
+
+    client_max_body_size 1100m;
+    client_body_timeout 720s;
+
+    location ^~ /api/ {
+        proxy_pass http://content_publish_backend_gateway;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 720s;
+        proxy_read_timeout 720s;
+        proxy_request_buffering off;
+    }
+
+    # Instagram fetches temporary videos from the public Internet. The backend
+    # creates random short-lived subdirectories and removes them after publishing.
+    location ^~ /local-published/_instagram/ {
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://content_publish_backend_gateway;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 720s;
+        proxy_read_timeout 720s;
+        proxy_buffering off;
+        add_header X-Content-Type-Options nosniff always;
+    }
+
+    # Replace this CIDR with the office/VPN client network. Remove allow/deny only
+    # when all published files are intentionally public.
+    location ^~ /local-published/ {
+        allow 10.20.30.0/24;
+        deny all;
+        limit_except GET HEAD { deny all; }
+        proxy_pass http://content_publish_backend_gateway;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_connect_timeout 30s;
+        proxy_read_timeout 720s;
+        proxy_buffering off;
+        add_header X-Content-Type-Options nosniff always;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location ~ /\.(?!well-known/) {
+        deny all;
+    }
+}

@@ -2,12 +2,12 @@
 
 面向公司内部的内容提交、审核、自动发布与检索平台。前端只负责用户交互和 REST API 调用，不读取服务器目录、不处理文件转换，也不自行拼接发布 URL。
 
-配套 FastAPI + PostgreSQL 后端位于 `backend/`。本地一键启动、联调和验收见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)；无 root 权限的服务器部署见 [`docs/SERVER_DEPLOYMENT_NON_ROOT_README.md`](docs/SERVER_DEPLOYMENT_NON_ROOT_README.md)，有 root 权限的部署见 [`docs/SERVER_DEPLOYMENT_README.md`](docs/SERVER_DEPLOYMENT_README.md)；验收结果见 [`docs/LOCAL_INTEGRATION_TEST_REPORT.md`](docs/LOCAL_INTEGRATION_TEST_REPORT.md)。
+配套 FastAPI + PostgreSQL 后端位于 `backend/`。本地一键启动、联调和验收见 [`docs/LOCAL_DEVELOPMENT.md`](docs/LOCAL_DEVELOPMENT.md)；前端、后端、数据库分离部署见 [`docs/DISTRIBUTED_DEPLOYMENT_README.md`](docs/DISTRIBUTED_DEPLOYMENT_README.md)；无 root 权限的单机部署见 [`docs/SERVER_DEPLOYMENT_NON_ROOT_README.md`](docs/SERVER_DEPLOYMENT_NON_ROOT_README.md)，有 root 权限的单机部署见 [`docs/SERVER_DEPLOYMENT_README.md`](docs/SERVER_DEPLOYMENT_README.md)；验收结果见 [`docs/LOCAL_INTEGRATION_TEST_REPORT.md`](docs/LOCAL_INTEGRATION_TEST_REPORT.md)。
 
 ## 技术栈
 
 - Vue 3 + TypeScript + Vite
-- Vue Router、Pinia、Axios
+- Vue Router、Pinia、Axios、Vue I18n
 - Element Plus
 - Composition API 与 `<script setup lang="ts">`
 
@@ -56,6 +56,7 @@ npm run preview
 
 ```bash
 npm run lint
+npm run check:i18n
 ```
 
 ## 环境变量
@@ -88,11 +89,34 @@ Mock 模式账号保存在浏览器本地；真实 API 模式由后端 Seed 创�
 
 Axios 会统一添加 `Authorization: Bearer {token}`，并处理网络错误、401 登录失效与 403 权限不足。
 
+## Supported Languages
+
+系统支持：
+
+- 简体中文：`zh-CN`
+- 日本語：`ja-JP`
+- English：`en-US`
+
+默认语言和缺失翻译的 fallback 均为 `zh-CN`。系统不会根据浏览器语言自动切换；`localStorage.app_locale` 不存在或不是上述合法值时使用中文，因此现有用户升级后仍看到中文。
+
+登录页右上角和登录后的 Header 右上角都有 Language Switcher。切换会立即更新当前页面、路由标题、表单校验和 Element Plus 组件，不会刷新页面、跳转、退出登录或清空正在填写的表单。选择结果保存在 `localStorage.app_locale`。
+
+翻译统一维护在 `src/i18n/catalog.ts`，不要用中文文案作为 key。新增文案时加入语义化 key，并同时填写 `zh-CN`、`ja-JP`、`en-US`；随后执行：
+
+```bash
+npm run check:i18n
+npm run build
+```
+
+`npm run check:i18n` 会检查三种语言文本是否齐全、插值参数是否一致，以及源码静态引用的 key 是否存在。增加新语言时，还需在 `src/i18n/types.ts` 注册 locale、在 catalog 中补齐该语言，并在 `src/App.vue` 增加对应的 Element Plus locale。
+
+Axios 会在每个请求中发送当前语言的 `Accept-Language`，但后端业务逻辑不依赖该请求头。后端高频异常保留原 `message` 并增加稳定 `error_code`；前端优先按 code 翻译，未知 code 则回退显示原 message。详细迁移范围和部署验收项见 [`docs/I18N_MIGRATION_CHECKLIST.md`](docs/I18N_MIGRATION_CHECKLIST.md)。
+
 ## 多文件与多发布目标
 
 - 新建或编辑内容时可选择多个文件，也可选择文件夹并保留相对目录结构；新选择会整体替换已有文件。
 - 多文件/文件夹的内容预览只展示可下载的文件清单。单个 PPT 也按普通文件展示文件名，不再生成与原文不一致的文字预览。
-- 管理员可配置公司服务器目录（Local）、SFTP、GitHub Repository、GitHub Pages、Microsoft OneDrive 和 Dropbox，并在发布配置页执行“测试连接”。
+- 管理员可配置公司服务器目录（Local）、SFTP、GitHub Repository、GitHub Pages、Microsoft OneDrive、Dropbox 和 Instagram Reels，并在发布配置页执行“测试连接”。Instagram 配置与真实发布测试见 [`docs/INSTAGRAM_PUBLISHING_SETUP.md`](docs/INSTAGRAM_PUBLISHING_SETUP.md)。
 - 普通员工只会看到目标名称、类型和适用内容类型，不会收到物理目录、仓库、服务器或凭证配置。
 - Token、密码、Client Secret 与私钥只由后端通过 `credential_ref` 对应的环境变量读取。具体字段、变量命名及扩展 Adapter 方法见 [`backend/README.md`](backend/README.md)。
 
@@ -151,6 +175,11 @@ src/
 7. 对预置发布失败内容执行重新发布，无需重复审核。
 8. 员工仅能检索并打开已发布内容。
 9. 管理员查看操作日志和发布日志。
+
+
+
+
+
 
 
 

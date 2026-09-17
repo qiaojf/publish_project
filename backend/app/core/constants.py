@@ -25,6 +25,7 @@ class ContentType(StrEnum):
     WORD = "word"
     EXCEL = "excel"
     IMAGE = "image"
+    VIDEO = "video"
     FILE = "file"
 
 
@@ -61,6 +62,7 @@ class PublishTargetType(StrEnum):
     GITHUB_PAGES = "github_pages"
     ONEDRIVE = "onedrive"
     DROPBOX = "dropbox"
+    INSTAGRAM = "instagram"
 
 
 ALL_PUBLISHABLE_CONTENT_TYPES = frozenset(ContentType)
@@ -71,6 +73,7 @@ PUBLISH_TARGET_CONTENT_TYPES: dict[PublishTargetType, frozenset[ContentType]] = 
     PublishTargetType.GITHUB_PAGES: ALL_PUBLISHABLE_CONTENT_TYPES - {ContentType.DYNAMIC},
     PublishTargetType.ONEDRIVE: ALL_PUBLISHABLE_CONTENT_TYPES,
     PublishTargetType.DROPBOX: ALL_PUBLISHABLE_CONTENT_TYPES,
+    PublishTargetType.INSTAGRAM: frozenset({ContentType.VIDEO}),
 }
 
 
@@ -82,5 +85,6 @@ ALLOWED_EXTENSIONS: dict[ContentType, set[str]] = {
     ContentType.WORD: {".doc", ".docx"},
     ContentType.EXCEL: {".xls", ".xlsx"},
     ContentType.IMAGE: {".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg", ".bmp"},
+    ContentType.VIDEO: {".mp4", ".mov"},
     ContentType.FILE: set(),
 }
