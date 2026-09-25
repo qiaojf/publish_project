@@ -1,0 +1,105 @@
+name: content-publish
+
+services:
+  database:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-content_publish}
+      POSTGRES_USER: ${POSTGRES_USER:-content_publish}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-content_publish_change_me}
+      TZ: ${TZ:-Asia/Tokyo}
+      PGTZ: ${TZ:-Asia/Tokyo}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks:
+      - app_network
+
+  backend:
+    build:
+      context: .
+      dockerfile: deploy/docker/backend.Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      APP_ENV: production
+      DEBUG: "false"
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-content_publish}:${POSTGRES_PASSWORD:-content_publish_change_me}@database:5432/${POSTGRES_DB:-content_publish}
+      TEST_DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-content_publish}:${POSTGRES_PASSWORD:-content_publish_change_me}@database:5432/content_publish_test
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-change-this-docker-jwt-secret-before-production}
+      SOURCE_STORAGE_ROOT: /app/local-data/source
+      PREVIEW_STORAGE_ROOT: /app/local-data/preview
+      BUILD_STORAGE_ROOT: /app/local-data/build
+      LOCAL_PUBLISHED_ROOT: /app/local-data/published
+      LOCAL_PUBLISHED_BASE_URL: /local-published
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8080,http://127.0.0.1:8080}
+      TZ: ${TZ:-Asia/Tokyo}
+    command:
+      - /bin/sh
+      - -c
+      - |
+        python -m alembic upgrade head
+        python scripts/seed.py
+        exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --proxy-headers --forwarded-allow-ips="*"
+    volumes:
+      - source_data:/app/local-data/source
+      - preview_data:/app/local-data/preview
+      - build_data:/app/local-data/build
+      - published_data:/app/local-data/published
+    depends_on:
+      database:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=3).read()"
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      - app_network
+
+  frontend:
+    build:
+      context: .
+      dockerfile: deploy/docker/frontend.Dockerfile
+      args:
+        VITE_API_BASE_URL: /api
+        VITE_USE_MOCK: "false"
+    restart: unless-stopped
+    ports:
+      - "${APP_PORT:-8080}:80"
+    volumes:
+      - published_data:/srv/local-published:ro
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    networks:
+      - app_network
+
+volumes:
+  postgres_data:
+  source_data:
+  preview_data:
+  build_data:
+  published_data:
+
+networks:
+  app_network:
+    driver: bridge

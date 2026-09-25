@@ -1,3 +1,4 @@
+from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 
 from app.content_processors.factory import ContentProcessorFactory
@@ -27,26 +28,43 @@ class PublishService:
 
     @classmethod
     def approve_and_publish(cls, db: Session, content_id: int, operator: User, comment: str) -> ContentRead:
+        _queued, record_id = cls.queue_approve(db, content_id, operator, comment)
+        return cls._execute(db, record_id)
+
+    @classmethod
+    def queue_approve(
+        cls, db: Session, content_id: int, operator: User, comment: str,
+    ) -> tuple[ContentRead, int]:
         content = ContentRepository.get_for_update(db, content_id)
         if not content:
             raise ResourceNotFound("内容不存在", "CONTENT_NOT_FOUND")
         if content.review_status != ReviewStatus.PENDING.value:
             raise BusinessRuleError("该内容当前不在待审核状态", error_code="REVIEW_INVALID_STATUS")
         record = cls._initialize(db, content, operator, action="approve_content", review_action=True, comment=comment)
-        return cls._execute(db, record.id)
+        return content_to_read(content, include_body=True), record.id
 
     @classmethod
     def direct_publish(cls, db: Session, content_id: int, operator: User) -> ContentRead:
+        _queued, record_id = cls.queue_direct_publish(db, content_id, operator)
+        return cls._execute(db, record_id)
+
+    @classmethod
+    def queue_direct_publish(cls, db: Session, content_id: int, operator: User) -> tuple[ContentRead, int]:
         content = ContentRepository.get_for_update(db, content_id)
         if not content:
             raise ResourceNotFound("内容不存在", "CONTENT_NOT_FOUND")
         if content.publish_status == PublishStatus.PUBLISHING.value:
             raise BusinessRuleError("内容正在发布，请勿重复提交", error_code="CONTENT_ALREADY_PUBLISHING")
         record = cls._initialize(db, content, operator, action="publish_content", review_action=True, comment="管理员直接发布")
-        return cls._execute(db, record.id)
+        return content_to_read(content, include_body=True), record.id
 
     @classmethod
     def republish(cls, db: Session, content_id: int, operator: User) -> ContentRead:
+        _queued, record_id = cls.queue_republish(db, content_id, operator)
+        return cls._execute(db, record_id)
+
+    @classmethod
+    def queue_republish(cls, db: Session, content_id: int, operator: User) -> tuple[ContentRead, int]:
         content = ContentRepository.get_for_update(db, content_id)
         if not content:
             raise ResourceNotFound("内容不存在", "CONTENT_NOT_FOUND")
@@ -55,7 +73,13 @@ class PublishService:
         if content.review_status != ReviewStatus.APPROVED.value or content.publish_status != PublishStatus.FAILED.value:
             raise BusinessRuleError("仅审核通过且发布失败的内容可以重新发布")
         record = cls._initialize(db, content, operator, action="republish_content", review_action=False, comment=None)
-        return cls._execute(db, record.id)
+        return content_to_read(content, include_body=True), record.id
+
+    @classmethod
+    def execute_queued(cls, record_id: int, bind: Engine) -> None:
+        """Execute a committed publish record after the API response has been sent."""
+        with Session(bind=bind, autoflush=False, expire_on_commit=False) as db:
+            cls._execute(db, record_id)
 
     @classmethod
     def _initialize(

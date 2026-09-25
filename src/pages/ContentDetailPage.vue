@@ -36,7 +36,7 @@ async function pollPublishStatus() {
   else ElMessage.error(content.value.failure_reason || t('content.publishFailedCheckLog'))
 }
 async function submit() { try { await submitContent(id); ElMessage.success(t('content.submitted')); load() } catch (e) { ElMessage.error(getRequestErrorMessage(e, 'content.submitFailed')) } }
-async function republish() { try { await ElMessageBox.confirm(t('content.republishApprovedConfirm'), t('content.republish'), { confirmButtonText: t('content.republish'), cancelButtonText: t('common.cancel') }); await republishContent(id); ElMessage.success(t('content.republishSucceeded')); load() } catch (e) { if (e instanceof Error) ElMessage.error(getRequestErrorMessage(e)) } }
+async function republish() { try { await ElMessageBox.confirm(t('content.republishApprovedConfirm'), t('content.republish'), { confirmButtonText: t('content.republish'), cancelButtonText: t('common.cancel') }); await republishContent(id); ElMessage.success(t('content.republishSucceeded')); await router.replace({ query: { ...route.query, publishing: '1' } }); await pollPublishStatus() } catch (e) { if (e instanceof Error) ElMessage.error(getRequestErrorMessage(e)) } }
 onMounted(async () => { await load(); await pollPublishStatus() })
 onBeforeUnmount(() => { if (publishPoll) clearTimeout(publishPoll) })
 </script>

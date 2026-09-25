@@ -13,6 +13,21 @@ const sourceLoading = ref(false)
 const sourceError = ref(false)
 let requestVersion = 0
 
+const sanitizedTextPreview = computed(() => {
+  if (props.preview?.preview_type !== 'text') return ''
+  const documentNode = new DOMParser().parseFromString(props.preview.content, 'text/html')
+  documentNode.querySelectorAll('script, iframe, object, embed, base, meta[http-equiv="refresh"]').forEach((node) => node.remove())
+  documentNode.querySelectorAll('*').forEach((element) => {
+    for (const attribute of [...element.attributes]) {
+      const value = attribute.value.trim().toLowerCase()
+      if (attribute.name.toLowerCase().startsWith('on') || value.startsWith('javascript:')) {
+        element.removeAttribute(attribute.name)
+      }
+    }
+  })
+  return `<!doctype html>${documentNode.documentElement.outerHTML}`
+})
+
 const displayUrl = computed(() => objectUrl.value || (
   props.preview && 'preview_url' in props.preview ? props.preview.preview_url || '' : ''
 ))
@@ -72,7 +87,7 @@ onBeforeUnmount(() => { requestVersion += 1; revokeObjectUrl() })
     <template v-if="preview?.preview_type === 'url'"><iframe :src="preview.preview_url" :title="t('preview.contentPreview')" /></template>
     <template v-else-if="preview?.preview_type === 'image' && displayUrl"><img :src="displayUrl" :alt="t('preview.contentPreview')" /></template>
     <template v-else-if="preview?.preview_type === 'pdf' && displayUrl"><iframe :src="displayUrl" :title="t('preview.pdfPreview')" /></template>
-    <template v-else-if="preview?.preview_type === 'text'"><iframe :srcdoc="preview.content" sandbox="allow-same-origin" :title="t('preview.contentPreview')" /></template>
+    <template v-else-if="preview?.preview_type === 'text'"><iframe :srcdoc="sanitizedTextPreview" sandbox="allow-same-origin" :title="t('preview.contentPreview')" /></template>
     <div v-else-if="sourceError" class="file-preview"><el-icon><Document /></el-icon><strong>{{ t('preview.loadFailed') }}</strong><p>{{ t('preview.loadFailedHint') }}</p></div>
     <div v-else-if="preview?.preview_type === 'files'" class="multi-file-preview">
       <div class="multi-file-head"><el-icon><Document /></el-icon><div><strong>{{ t('uploader.fileCount', { count: preview.files.length }) }}</strong><span>{{ t('preview.multiFileHint') }}</span></div></div>

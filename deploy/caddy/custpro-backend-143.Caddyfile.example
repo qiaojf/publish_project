@@ -1,0 +1,48 @@
+{
+    admin off
+    auto_https off
+}
+
+# Bind this listener to the .143 LAN address if the host has more than one NIC.
+:18080 {
+    request_body {
+        max_size 1100MB
+    }
+
+    @notFrontend {
+        not remote_ip <FRONTEND_IP> 127.0.0.1
+    }
+    respond @notFrontend "Forbidden" 403
+
+    handle /api/* {
+        reverse_proxy http://127.0.0.1:18000 {
+            transport http {
+                dial_timeout 30s
+                response_header_timeout 900s
+                read_timeout 900s
+                write_timeout 900s
+            }
+            flush_interval -1
+        }
+    }
+
+    handle_path /local-published/* {
+        root * <PUBLISHED_ROOT>
+        file_server
+    }
+
+    handle /healthz {
+        respond "ok" 200
+    }
+
+    handle {
+        respond "Not Found" 404
+    }
+
+    log {
+        output file <LOG_ROOT>/backend-gateway-access.log {
+            roll_size 50MB
+            roll_keep 10
+        }
+    }
+}

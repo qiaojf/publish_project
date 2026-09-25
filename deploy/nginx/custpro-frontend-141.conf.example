@@ -1,0 +1,85 @@
+# custpro.net frontend gateway on the host whose address ends in .141.
+#
+# Assumptions:
+# - FortiGate terminates HTTPS and forwards HTTP to this listener on port 18080.
+# - Replace <BACKEND_IP> and <FRONTEND_WEB_ROOT> before running `nginx -t`.
+# - The backend gateway on .143 only accepts traffic from this host.
+
+upstream custpro_backend_143 {
+    server <BACKEND_IP>:18080 max_fails=2 fail_timeout=10s;
+    keepalive 16;
+}
+
+server {
+    listen 18080;
+    listen [::]:18080;
+    server_name custpro.net;
+
+    root <FRONTEND_WEB_ROOT>;
+    index index.html;
+
+    # The application accepts at most 1024 MB. Leave room for multipart headers.
+    client_max_body_size 1100m;
+    client_body_timeout 900s;
+    send_timeout 900s;
+
+    location = /healthz {
+        access_log off;
+        default_type text/plain;
+        return 200 "ok\n";
+    }
+
+    location ^~ /api/ {
+        proxy_pass http://custpro_backend_143;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Request-ID $request_id;
+
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 900s;
+        proxy_read_timeout 900s;
+        proxy_request_buffering off;
+        proxy_buffering off;
+        proxy_next_upstream off;
+    }
+
+    location ^~ /local-published/ {
+        proxy_pass http://custpro_backend_143;
+        proxy_http_version 1.1;
+        proxy_set_header Connection "";
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Request-ID $request_id;
+        proxy_connect_timeout 30s;
+        proxy_send_timeout 900s;
+        proxy_read_timeout 900s;
+        proxy_buffering off;
+        proxy_next_upstream off;
+        add_header X-Content-Type-Options nosniff always;
+    }
+
+    # Never cache index.html: it contains the current hashed asset names.
+    location = /index.html {
+        add_header Cache-Control "no-store, no-cache, must-revalidate" always;
+        try_files $uri =404;
+    }
+
+    location ^~ /assets/ {
+        add_header Cache-Control "public, max-age=31536000, immutable" always;
+        try_files $uri =404;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+
+    location ~ /\. {
+        deny all;
+    }
+}

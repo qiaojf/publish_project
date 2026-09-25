@@ -39,7 +39,10 @@ class LocalTargetPublisher(BaseTargetPublisher):
             actual_root = resolve_publish_root(target.publish_root)
             if actual_root != expected_root:
                 raise PublishTargetConfigurationError(
-                    f"Local 发布根目录与 URL 根地址不匹配；当前 URL 应对应目录：{expected_root}"
+                    "Local 发布根目录与 URL 根地址不匹配："
+                    f"URL 根地址 {target.base_url} 对应的服务器目录应为 {expected_root}，"
+                    f"但当前发布根目录解析为 {actual_root}。"
+                    "请让发布根目录和 /local-published/ 后的子路径保持一致"
                 )
 
     def publish(self, artifact: PublishArtifact, target: PublishTarget) -> TargetPublishResult:

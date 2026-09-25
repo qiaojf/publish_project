@@ -1,0 +1,60 @@
+{
+    admin off
+    auto_https off
+}
+
+# FortiGate terminates HTTPS and forwards HTTP to this non-root listener.
+:18080 {
+    encode zstd gzip
+
+    request_body {
+        max_size 1100MB
+    }
+
+    handle /api/* {
+        reverse_proxy http://<BACKEND_IP>:18080 {
+            header_up X-Forwarded-Proto https
+            transport http {
+                dial_timeout 30s
+                response_header_timeout 900s
+                read_timeout 900s
+                write_timeout 900s
+            }
+            flush_interval -1
+        }
+    }
+
+    handle /local-published/* {
+        reverse_proxy http://<BACKEND_IP>:18080 {
+            header_up X-Forwarded-Proto https
+            transport http {
+                dial_timeout 30s
+                response_header_timeout 900s
+                read_timeout 900s
+                write_timeout 900s
+            }
+            flush_interval -1
+        }
+    }
+
+    handle /healthz {
+        respond "ok" 200
+    }
+
+    @index path / /index.html
+    header @index Cache-Control "no-store, no-cache, must-revalidate"
+    header /assets/* Cache-Control "public, max-age=31536000, immutable"
+
+    handle {
+        root * <FRONTEND_WEB_ROOT>
+        try_files {path} /index.html
+        file_server
+    }
+
+    log {
+        output file <LOG_ROOT>/frontend-access.log {
+            roll_size 50MB
+            roll_keep 10
+        }
+    }
+}

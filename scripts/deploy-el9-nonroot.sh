@@ -175,6 +175,7 @@ RUNTIME_ROOT="$INSTALL_ROOT/runtime"
 TOOLS_ROOT="$INSTALL_ROOT/tools"
 RUN_ROOT="$INSTALL_ROOT/run"
 LOG_ROOT="$INSTALL_ROOT/logs"
+TMP_ROOT="$INSTALL_ROOT/tmp"
 PGDATA="$INSTALL_ROOT/postgres/data"
 PG_SOCKET_DIR="$INSTALL_ROOT/postgres/socket"
 BACKEND_ROOT="$APP_ROOT/backend"
@@ -282,8 +283,8 @@ if [[ -f $BACKEND_ENV && $FORCE_CONFIG == 0 ]]; then
 fi
 
 mkdir -p -- "$APP_ROOT" "$DATA_ROOT/source" "$DATA_ROOT/preview" "$DATA_ROOT/build" "$DATA_ROOT/published" \
-  "$TOOLS_ROOT" "$RUN_ROOT" "$LOG_ROOT" "$PG_SOCKET_DIR" "$CONFIG_ROOT" "$INSTALL_ROOT/bin"
-chmod 700 "$CONFIG_ROOT" "$RUN_ROOT" "$PG_SOCKET_DIR"
+  "$TOOLS_ROOT" "$RUN_ROOT" "$LOG_ROOT" "$TMP_ROOT" "$PG_SOCKET_DIR" "$CONFIG_ROOT" "$INSTALL_ROOT/bin"
+chmod 700 "$CONFIG_ROOT" "$RUN_ROOT" "$TMP_ROOT" "$PG_SOCKET_DIR"
 
 if [[ $PREVIOUS_ENABLE_SYSTEMD == 1 ]]; then
   command -v systemctl >/dev/null 2>&1 || die "旧部署使用用户 systemd，但当前找不到 systemctl。"
@@ -562,12 +563,19 @@ cat > "$CADDY_CONFIG" <<EOF
 :${WEB_PORT} {
     encode zstd gzip
 
+    request_body {
+        max_size $((MAX_UPLOAD_SIZE_MB + 32))MB
+    }
+
     handle /api/* {
         reverse_proxy 127.0.0.1:${API_PORT} {
             transport http {
                 dial_timeout 30s
-                response_header_timeout 720s
+                response_header_timeout 900s
+                read_timeout 900s
+                write_timeout 900s
             }
+            flush_interval -1
         }
     }
 
@@ -638,6 +646,7 @@ cat >> "$SUPERVISOR_CONFIG" <<EOF
 [program:backend]
 command=${PYTHON} -m uvicorn app.main:app --host 127.0.0.1 --port ${API_PORT} --workers ${UVICORN_WORKERS} --proxy-headers --forwarded-allow-ips=127.0.0.1
 directory=${BACKEND_ROOT}
+environment=TMPDIR="${TMP_ROOT}"
 priority=20
 autostart=true
 autorestart=true
@@ -672,6 +681,7 @@ chmod 600 "$SUPERVISOR_CONFIG" "$CADDY_CONFIG"
   printf 'RUNTIME_ROOT=%q\n' "$RUNTIME_ROOT"
   printf 'RUN_ROOT=%q\n' "$RUN_ROOT"
   printf 'LOG_ROOT=%q\n' "$LOG_ROOT"
+  printf 'TMP_ROOT=%q\n' "$TMP_ROOT"
   printf 'PGDATA=%q\n' "$PGDATA"
   printf 'WEB_PORT=%q\n' "$WEB_PORT"
   printf 'API_PORT=%q\n' "$API_PORT"

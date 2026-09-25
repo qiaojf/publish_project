@@ -73,3 +73,26 @@ def test_local_target_can_be_renamed_support_multiple_types_and_be_disabled(
     )
     assert disabled.status_code == 200, disabled.text
     assert disabled.json()["data"]["enabled"] is False
+
+
+def test_local_target_rejects_mismatched_site_relative_url_when_saved(
+    client: TestClient, seeded: dict[str, int], tmp_path: Path,
+) -> None:
+    admin = auth_headers(client, "admin", "admin123")
+    response = client.put(
+        f"/api/publish-targets/{seeded['target']}",
+        json={
+            "name": "配置错误的本地发布区",
+            "target_type": "local",
+            "content_types": ["file"],
+            "publish_root": str(tmp_path / "wrong-directory"),
+            "base_url": "/local-published/content/",
+            "config": {},
+            "enabled": True,
+        },
+        headers=admin,
+    )
+
+    assert response.status_code == 422, response.text
+    assert response.json()["error_code"] == "PUBLISH_TARGET_CONFIGURATION_INVALID"
+    assert "local-published/ 后的子路径保持一致" in response.json()["message"]

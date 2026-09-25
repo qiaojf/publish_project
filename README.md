@@ -52,6 +52,17 @@ npm run build
 npm run preview
 ```
 
+Docker 单机试运行：
+
+```bash
+cp .env.docker.example .env
+test -f backend/.env || cp backend/.env.example backend/.env
+docker compose up -d --build
+docker compose ps
+```
+
+先修改根目录 `.env` 中的数据库密码和 JWT 密钥；第三方发布凭证继续配置在 `backend/.env`。浏览器访问 `http://localhost:8080`。Compose 会启动 PostgreSQL、FastAPI 和前端 Nginx，自动执行 Alembic migration 与幂等 Seed，并用持久化卷保存数据库、上传源文件、预览、构建产物和 Local 发布内容。查看启动日志使用 `docker compose logs -f`；停止服务使用 `docker compose down`，该命令不会删除持久化卷。
+
 代码检查：
 
 ```bash
@@ -175,8 +186,6 @@ src/
 7. 对预置发布失败内容执行重新发布，无需重复审核。
 8. 员工仅能检索并打开已发布内容。
 9. 管理员查看操作日志和发布日志。
-
-
 
 
 

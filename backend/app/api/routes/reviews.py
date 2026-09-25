@@ -1,13 +1,14 @@
 from datetime import date
 from typing import Annotated
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, BackgroundTasks, Query
 
 from app.api.deps import AdminUser, DbSession
 from app.core.constants import ContentType, ReviewStatus
 from app.schemas.common import ApiResponse, PageResult
 from app.schemas.content import ContentRead
 from app.schemas.review import RejectRequest, ReviewComment, ReviewDetailRead
+from app.services.publish_service import PublishService
 from app.services.review_service import ReviewService
 from app.utils.datetime import end_of_day, start_of_day
 
@@ -35,8 +36,12 @@ def review_detail(content_id: int, db: DbSession, _admin: AdminUser) -> ApiRespo
 
 
 @router.post("/{content_id}/approve", response_model=ApiResponse[ContentRead], summary="审核通过并发布")
-def approve(content_id: int, payload: ReviewComment, db: DbSession, admin: AdminUser) -> ApiResponse[ContentRead]:
-    return ApiResponse(data=ReviewService.approve(db, content_id, payload.comment, admin), message="审核与发布流程已完成")
+def approve(
+    content_id: int, payload: ReviewComment, background_tasks: BackgroundTasks, db: DbSession, admin: AdminUser,
+) -> ApiResponse[ContentRead]:
+    content, record_id = PublishService.queue_approve(db, content_id, admin, payload.comment)
+    background_tasks.add_task(PublishService.execute_queued, record_id, db.get_bind())
+    return ApiResponse(data=content, message="审核已通过，发布任务已开始")
 
 
 @router.post("/{content_id}/reject", response_model=ApiResponse[ContentRead], summary="驳回发布申请")

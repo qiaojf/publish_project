@@ -124,8 +124,11 @@ def test_complete_reject_resubmit_publish_search_flow(client: TestClient, db: Se
     assert approved.status_code == 200, approved.text
     result = approved.json()["data"]
     assert result["review_status"] == "approved"
-    assert result["publish_status"] == "published"
-    assert result["view_url"]
+    assert result["publish_status"] == "publishing"
+    db.expire_all()
+    completed = client.get(f"/api/contents/{content_id}", headers=admin).json()["data"]
+    assert completed["publish_status"] == "published"
+    assert completed["view_url"]
     found = client.get("/api/search", params={"keyword": "完整发布流程"}, headers=employee).json()["data"]
     assert found["total"] == 1
     assert db.scalar(select(ReviewRecord).where(ReviewRecord.content_id == content_id, ReviewRecord.action == "submit"))
@@ -165,10 +168,16 @@ def test_publish_failure_and_republish_history(
     failed = client.post(f"/api/reviews/{content_id}/approve", json={"comment": "审核通过"}, headers=admin)
     assert failed.status_code == 200
     assert failed.json()["data"]["review_status"] == "approved"
-    assert failed.json()["data"]["publish_status"] == "failed"
+    assert failed.json()["data"]["publish_status"] == "publishing"
+    db.expire_all()
+    failed_result = client.get(f"/api/contents/{content_id}", headers=admin).json()["data"]
+    assert failed_result["publish_status"] == "failed"
     monkeypatch.undo()
     retried = client.post(f"/api/contents/{content_id}/republish", headers=admin)
     assert retried.status_code == 200, retried.text
-    assert retried.json()["data"]["publish_status"] == "published"
+    assert retried.json()["data"]["publish_status"] == "publishing"
+    db.expire_all()
+    retried_result = client.get(f"/api/contents/{content_id}", headers=admin).json()["data"]
+    assert retried_result["publish_status"] == "published"
     records = list(db.scalars(select(PublishRecord).where(PublishRecord.content_id == content_id).order_by(PublishRecord.id)))
     assert [record.status for record in records] == ["failed", "success"]

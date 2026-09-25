@@ -2,7 +2,7 @@ from typing import Annotated
 
 import mimetypes
 
-from fastapi import APIRouter, File, Form, Query, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, File, Form, Query, UploadFile, status
 from fastapi.responses import FileResponse
 
 from app.api.deps import AdminUser, CurrentUser, DbSession
@@ -101,13 +101,21 @@ def submit_content(content_id: int, db: DbSession, current_user: CurrentUser) ->
 
 
 @router.post("/{content_id}/publish", response_model=ApiResponse[ContentRead], summary="管理员直接发布")
-def publish_content(content_id: int, db: DbSession, admin: AdminUser) -> ApiResponse[ContentRead]:
-    return ApiResponse(data=PublishService.direct_publish(db, content_id, admin), message="发布流程已完成")
+def publish_content(
+    content_id: int, background_tasks: BackgroundTasks, db: DbSession, admin: AdminUser,
+) -> ApiResponse[ContentRead]:
+    content, record_id = PublishService.queue_direct_publish(db, content_id, admin)
+    background_tasks.add_task(PublishService.execute_queued, record_id, db.get_bind())
+    return ApiResponse(data=content, message="发布任务已开始")
 
 
 @router.post("/{content_id}/republish", response_model=ApiResponse[ContentRead], summary="重新发布失败内容")
-def republish_content(content_id: int, db: DbSession, admin: AdminUser) -> ApiResponse[ContentRead]:
-    return ApiResponse(data=PublishService.republish(db, content_id, admin), message="重新发布流程已完成")
+def republish_content(
+    content_id: int, background_tasks: BackgroundTasks, db: DbSession, admin: AdminUser,
+) -> ApiResponse[ContentRead]:
+    content, record_id = PublishService.queue_republish(db, content_id, admin)
+    background_tasks.add_task(PublishService.execute_queued, record_id, db.get_bind())
+    return ApiResponse(data=content, message="重新发布任务已开始")
 
 
 @router.get("/{content_id}/preview", response_model=ApiResponse[ContentPreview], summary="获取安全预览信息")

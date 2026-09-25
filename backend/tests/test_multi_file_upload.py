@@ -50,7 +50,10 @@ def test_multi_file_upload_lists_files_and_publishes_bundle(
     )
     assert published.status_code == 200, published.text
     result = published.json()["data"]
-    assert result["publish_status"] == "published"
+    assert result["publish_status"] == "publishing"
+    db.expire_all()
+    completed = client.get(f"/api/contents/{content['id']}", headers=admin).json()["data"]
+    assert completed["publish_status"] == "published"
     output = next((tmp_path / "published-files").iterdir())
     page = (output / "index.html").read_text(encoding="utf-8")
     assert "资料/readme.txt" in page and "资料/data.csv" in page

@@ -187,7 +187,7 @@ async function republish(item?: ContentItem) {
     })
     await republishContent(item.id)
     ElMessage.success(t('content.republishSucceeded'))
-    void load()
+    await router.push({ path: `/contents/${item.id}`, query: { publishing: '1' } })
   } catch (error) {
     if (error instanceof Error) ElMessage.error(error.message)
   }

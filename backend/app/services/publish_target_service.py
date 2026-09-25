@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
-from app.core.exceptions import BusinessRuleError, ResourceNotFound
+from app.core.constants import PublishTargetType
+from app.core.exceptions import BusinessRuleError, PublishTargetConfigurationError, ResourceNotFound
 from app.db.base import utc_now
 from app.db.models.publish_target import PublishTarget
 from app.db.models.user import User
@@ -18,6 +19,18 @@ from app.target_publishers.factory import TargetPublisherFactory
 
 
 class PublishTargetService:
+    @staticmethod
+    def _validate_before_save(target: PublishTarget) -> None:
+        """Reject a broken Local path/URL pair before approved content reaches publishing."""
+        if target.target_type != PublishTargetType.LOCAL.value:
+            return
+        try:
+            TargetPublisherFactory.create(target.target_type).validate_target(target)
+        except PublishTargetConfigurationError as exc:
+            raise BusinessRuleError(
+                str(exc), status_code=422, error_code="PUBLISH_TARGET_CONFIGURATION_INVALID",
+            ) from exc
+
     @staticmethod
     def _sanitize_config(value: object) -> object:
         if isinstance(value, dict):
@@ -57,6 +70,7 @@ class PublishTargetService:
             publish_root=payload.publish_root, base_url=payload.base_url, enabled=payload.enabled,
             created_by=operator.id,
         )
+        PublishTargetService._validate_before_save(target)
         OperationLogRepository.create(db, user_id=operator.id, action="create_publish_target", target_type="publish_target", target_id=target.id, message=f"创建发布目标 {target.name}")
         db.commit()
         db.refresh(target)
@@ -76,6 +90,7 @@ class PublishTargetService:
         target.base_url = payload.base_url
         target.enabled = payload.enabled
         target.updated_at = utc_now()
+        PublishTargetService._validate_before_save(target)
         OperationLogRepository.create(db, user_id=operator.id, action="update_publish_target", target_type="publish_target", target_id=target.id, message=f"更新发布目标 {target.name}")
         db.commit()
         db.refresh(target)
